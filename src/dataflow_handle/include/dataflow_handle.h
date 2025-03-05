@@ -77,27 +77,25 @@ struct dataflow_handle {
 	
 	// Compute Functionality
 	int (*submit_op)(Dataflow_Handle * dataflow_handle, Op * op, int stream_id);
+	int (*submit_host_op)(Dataflow_Handle * dataflow_handle, void * host_func, void * host_func_arg, int stream_id);
 
 	// Dependencies Functionality
 
 	// records event and returns a reference to event that can be passed to same/different dataflow handle
 	void * (*get_stream_state)(Dataflow_Handle * dataflow_handle, int stream_id);
 	int (*submit_dependency)(Dataflow_Handle * dataflow_handle, int stream_id, void * other_stream_state);
-	int (*submit_stream_post_sem_callback)(Dataflow_Handle * dataflow_handle, int stream_id, sem_t * sem_to_post);
 	int (*sync_stream)(Dataflow_Handle * dataflow_handle, int stream_id);
-	int (*sync_ctx)(Dataflow_Handle * dataflow_handle);
+	// Synchronizes all streams
+	int (*sync_handle)(Dataflow_Handle * dataflow_handle);
 
 	// Memory Functionality
 
-	// Memory allocs and frees are synchronization, so these should be embedded within
-	// a higher layer of memory management!
-	// Bulk call to alloc that then can be oragnized elsewhere...
-
-	// Considering changing this functionality to a seperate module or have the api be
-	// VMM calls where physical memory and mappings can be managed....
+	// Memory allocs and frees are slow and globally synchronizing, so these should be embedded within
+	// a higher layer of memory management. Bulk call to alloc that then can be oragnized elsewhere...
 	void * (*alloc_mem)(Dataflow_Handle * dataflow_handle, uint64_t size_bytes);
 	void (*free_mem)(Dataflow_Handle * dataflow_handle, void * dev_ptr);
-	// ensusres good transfer performance by page-locking host memory in way that streaming device driver can understand
+	// The host pointer should be on same numa node as device
+	// ensures good transfer performance by page-locking host memory in way that streaming device driver can understand
 	int (*enable_access_to_host_mem)(Dataflow_Handle * dataflow_handle, void * host_ptr, uint64_t size_bytes, unsigned int flags);
 	// undoes the enable access step above
 	int (*disable_access_to_host_mem)(Dataflow_Handle * dataflow_handle, void * host_ptr);
@@ -107,12 +105,13 @@ struct dataflow_handle {
 	
 
 	// Transfer Functionality
+
+	// From/to host memory
 	int (*submit_inbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_dest, void * host_src, uint64_t size_bytes);
 	int (*submit_outbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * host_dest, void * dev_src, uint64_t size_bytes);
 	int (*submit_peer_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_dest, void * dev_src, uint64_t size_bytes);
-	// TODO: Network
-
 	
+	// TODO: Network
 	
 };
 

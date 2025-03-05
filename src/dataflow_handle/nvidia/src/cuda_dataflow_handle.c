@@ -145,6 +145,23 @@ int cuda_submit_op(Dataflow_Handle * dataflow_handle, Op * op, int stream_id){
 
 }
 
+int cuda_submit_host_op(Dataflow_Handle * dataflow_handle, void * host_func, void * host_func_arg, int stream_id){
+
+	int ret;
+
+	CUstream * cu_streams = (CUstream *) dataflow_handle -> streams;
+
+	CUstream stream = cu_streams[stream_id];
+
+	ret = cu_host_func_launch(stream, (CUhostFn) host_func, host_func_arg);
+	if (ret){
+		fprintf(stderr, "Error: failed to launch host function...\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 
 /* 2. DEPENDENCY FUNCTIONALITY */
 
@@ -225,7 +242,7 @@ int cuda_sync_stream(Dataflow_Handle * dataflow_handle, int stream_id){
 }
 
 
-int cuda_sync_ctx(Dataflow_Handle * dataflow_handle){
+int cuda_sync_handle(Dataflow_Handle * dataflow_handle){
 
 	int ret;	
 
@@ -769,13 +786,14 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 
 	// Compute Functionality
 	dataflow_handle -> submit_op = &cuda_submit_op;
+	dataflow_handle -> submit_host_op = &cuda_submit_host_op;
 
 	// Dependency Functionality
 	dataflow_handle -> get_stream_state = &cuda_get_stream_state;
 	dataflow_handle -> submit_dependency = &cuda_submit_dependency;
-	dataflow_handle -> submit_stream_post_sem_callback = &cuda_submit_stream_post_sem_callback;
+	//dataflow_handle -> submit_stream_post_sem_callback = &cuda_submit_stream_post_sem_callback;
 	dataflow_handle -> sync_stream = &cuda_sync_stream;
-	dataflow_handle -> sync_ctx = &cuda_sync_ctx;
+	dataflow_handle -> sync_handle = &cuda_sync_handle;
 
 	// Memory Functionality
 	dataflow_handle -> alloc_mem = &cuda_alloc_mem;
