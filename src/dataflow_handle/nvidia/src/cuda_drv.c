@@ -44,12 +44,7 @@ int cu_initialize_ctx(CUcontext * ctx, CUdevice dev, unsigned int ctx_flags){
     	return -1;
 	}
 
-	result = cuCtxPushCurrent(*ctx);
-	if (result != CUDA_SUCCESS){
-		cuGetErrorString(result, &err);
-		fprintf(stderr, "Error: could not set context: %s\n", err);
-		return -1;
-	}
+	// automatically sets newly created contexxt...
 
 	return 0;
 }

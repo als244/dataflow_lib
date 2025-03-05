@@ -166,3 +166,25 @@ void * load_host_matrix_from_file(char * filepath, uint64_t M, uint64_t N, Dataf
 	return dest_matrix;
 }
 
+int save_host_matrix(char * filename, void * mat, uint64_t M, uint64_t N, DataflowDatatype dt){
+
+	FILE * fp = fopen(filename, "wb");
+	if (!fp){
+		fprintf(stderr, "Error: could not open file with path: %s\n", filename);
+		return -1;
+	}
+
+	size_t el_size = dataflow_sizeof_element(dt);
+	size_t num_els = M * N;
+
+	size_t num_written = fwrite(mat, el_size, num_els, fp);
+	if (num_written != num_els){
+		fprintf(stderr, "Error: write failed, expected to write %lu els, but only wrote %lu...\n", num_els, num_written);
+		fclose(fp);
+		return -1;
+	}
+
+	fclose(fp);
+
+	return 0;
+}

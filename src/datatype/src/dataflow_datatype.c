@@ -43,7 +43,6 @@ size_t dataflow_sizeof_element(DataflowDatatype arr_dtype){
 char * dataflow_datatype_as_string(DataflowDatatype dtype) {
 
     switch(dtype){
-
         case DATAFLOW_VOID:
             return "VOID";
         case DATAFLOW_FP64:

@@ -59,7 +59,8 @@ struct dataflow_handle {
 	int stream_prios[MAX_STREAMS];
 	char * stream_names[MAX_STREAMS];
 	// array of backend specific events, with size of num streams created at init time
-	void * events;
+	// CUevents for cuda
+	void * stream_states;
 
 	// space to actually load native module and functions
 	void * function_lib;
@@ -78,9 +79,10 @@ struct dataflow_handle {
 	int (*submit_op)(Dataflow_Handle * dataflow_handle, Op * op, int stream_id);
 
 	// Dependencies Functionality
-	int (*record_event)(Dataflow_Handle * dataflow_handle, int stream_id);
-	void * (*get_event_ref)(Dataflow_Handle * dataflow_handle, int stream_id);
-	int (*submit_dependency)(Dataflow_Handle * dataflow_handle, int stream_id, void * recorded_event_ref);
+
+	// records event and returns a reference to event that can be passed to same/different dataflow handle
+	void * (*get_stream_state)(Dataflow_Handle * dataflow_handle, int stream_id);
+	int (*submit_dependency)(Dataflow_Handle * dataflow_handle, int stream_id, void * other_stream_state);
 	int (*submit_stream_post_sem_callback)(Dataflow_Handle * dataflow_handle, int stream_id, sem_t * sem_to_post);
 	int (*sync_stream)(Dataflow_Handle * dataflow_handle, int stream_id);
 	int (*sync_ctx)(Dataflow_Handle * dataflow_handle);

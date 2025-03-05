@@ -9,7 +9,7 @@ DATATYPES_INCLUDE_DIR = include
 
 MAIN_OBJS = objs/dataflow_datatype.o
 INTERNAL_OBJS = objs/convert_datatype.o objs/convert_datatype_avx512.o
-ALL_OBJS = ${OBJS} ${INTERNAL_OBJS}
+ALL_OBJS = ${MAIN_OBJS} ${INTERNAL_OBJS}
 
 EXECS = test/test_convert
 DATATYPES_LIB_DEPENDS = -pthread

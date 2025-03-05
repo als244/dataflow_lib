@@ -230,15 +230,16 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("Func Meta size: %lu\n", sizeof(Func_Meta));
-
 	size_t n_written = fwrite(all_func_meta, sizeof(Func_Meta), cur_func_cnt, fp);
 	if (n_written != cur_func_cnt){
 		fprintf(stderr, "Error: failed to write all func meta, expected: %d, wrote: %lu...\n", cur_func_cnt, n_written);
+		fclose(fp);
+		free(all_func_meta);
 		return -1;
 	}
 
 	fclose(fp);
+	free(all_func_meta);
 
 	printf("Success! Saved %d functions with path: %s...\n", cur_func_cnt, all_func_meta_filepath);
 

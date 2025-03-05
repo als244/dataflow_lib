@@ -38,12 +38,8 @@ static uint64_t cuda_fingerprint_to_least_sig64(uint8_t * fingerprint, int finge
     return result;
 }
 
-uint64_t cuda_op_table_hash_func(void * cuda_function_item, uint64_t table_size) {
-	Cuda_Function * item_casted = (Cuda_Function *) cuda_function_item;
-	Op_Skeleton * func_op_skeleton = &(item_casted -> op_skeleton);
-	Op_Identifier * func_identifier = &(func_op_skeleton -> identifier);
-	unsigned char * fingerprint = func_identifier -> fingerprint;
-	uint64_t least_sig_64bits = cuda_fingerprint_to_least_sig64(fingerprint, OP_IDENTIFIER_FINGERPRINT_NUM_BYTES);
+uint64_t cuda_op_table_hash_func(void * op_fingerprint, uint64_t table_size) {
+	uint64_t least_sig_64bits = cuda_fingerprint_to_least_sig64((void *) op_fingerprint, OP_IDENTIFIER_FINGERPRINT_NUM_BYTES);
 	return least_sig_64bits % table_size;
 }
 
@@ -152,7 +148,7 @@ int cuda_submit_op(Dataflow_Handle * dataflow_handle, Op * op, int stream_id){
 
 /* 2. DEPENDENCY FUNCTIONALITY */
 
-int cuda_record_event(Dataflow_Handle * dataflow_handle, int stream_id){
+void * cuda_get_stream_state(Dataflow_Handle * dataflow_handle, int stream_id){
 	
 	int ret;
 
@@ -160,31 +156,22 @@ int cuda_record_event(Dataflow_Handle * dataflow_handle, int stream_id){
 
 	CUstream stream = cu_streams[stream_id];
 
-	CUevent * cu_events = (CUevent *) dataflow_handle -> events;
+	CUevent * cu_events = (CUevent *) dataflow_handle -> stream_states;
 
 	CUevent event_to_wait_on = cu_events[stream_id];
 
 	ret = cu_record_event(event_to_wait_on, stream);
 	if (ret){
-		fprintf(stderr, "Error: failed to record event when trying to submit dependency...\n");
-		return -1;
-	}
-
-}
-
-void * cuda_get_event_ref(Dataflow_Handle * dataflow_handle, int stream_id){
-	if (stream_id >= dataflow_handle -> num_streams){
-		fprintf(stderr, "Error: cannot get cuda event ref for stream id: %d, when only %d streams...\n", stream_id, dataflow_handle -> num_streams);
+		fprintf(stderr, "Error: failed to record event when trying to get stream state, cannot return ref...\n");
 		return NULL;
 	}
 
-	CUevent * cu_events = (CUevent *) dataflow_handle -> events;
 	return &(cu_events[stream_id]);
 }
 
 
 
-int cuda_submit_dependency(Dataflow_Handle * dataflow_handle, int stream_id, void * recorded_event_ref){
+int cuda_submit_dependency(Dataflow_Handle * dataflow_handle, int stream_id, void * other_stream_state){
 
 	int ret;
 
@@ -192,7 +179,7 @@ int cuda_submit_dependency(Dataflow_Handle * dataflow_handle, int stream_id, voi
 
 	CUstream stream = cu_streams[stream_id];
 
-	CUevent event_to_wait_on = *((CUevent *) recorded_event_ref);
+	CUevent event_to_wait_on = *((CUevent *) other_stream_state);
 
 	ret = cu_stream_wait_event(stream, event_to_wait_on);
 	if (ret){
@@ -601,14 +588,14 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 		return -1;
 	}
 
-	dataflow_handle -> events = malloc(num_streams * sizeof(CUevent));
-	if (!dataflow_handle -> events){
+	dataflow_handle -> stream_states = malloc(num_streams * sizeof(CUevent));
+	if (!dataflow_handle -> stream_states){
 		fprintf(stderr, "Error: malloc failed to allocate space for cuevent container...\n");
 		return -1;
 	}
 
 	CUstream * cu_streams = (CUstream *) dataflow_handle -> streams;
-	CUevent * cu_events = (CUevent *) dataflow_handle -> events;
+	CUevent * cu_events = (CUevent *) dataflow_handle -> stream_states;
 
 	for (int i = 0; i < num_streams; i++){
 		ret = cu_initialize_stream(&(cu_streams[i]), (dataflow_handle -> stream_prios)[i]);
@@ -784,8 +771,7 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 	dataflow_handle -> submit_op = &cuda_submit_op;
 
 	// Dependency Functionality
-	dataflow_handle -> get_event_ref = &cuda_get_event_ref;
-	dataflow_handle -> record_event = &cuda_record_event;
+	dataflow_handle -> get_stream_state = &cuda_get_stream_state;
 	dataflow_handle -> submit_dependency = &cuda_submit_dependency;
 	dataflow_handle -> submit_stream_post_sem_callback = &cuda_submit_stream_post_sem_callback;
 	dataflow_handle -> sync_stream = &cuda_sync_stream;
