@@ -1,0 +1,23 @@
+CC = gcc
+CFLAGS = -g -fPIC
+
+PROJ_INCLUDE_DIR = ../../include
+
+FINGERPRINT_SRC_DIR = src
+FINGERPRINT_INCLUDE_DIR = include
+
+FINGERPRINT_OBJ_DIR = objs
+
+FINGERPRINT_LIB_DEPENDS = -lcrypto
+
+FINGERPRINT_TEST_DIR = test
+
+EXECS = 
+
+all: ${FINGERPRINT_OBJ_DIR}/fingerprint.o
+
+${FINGERPRINT_OBJ_DIR}/fingerprint.o: ${FINGERPRINT_SRC_DIR}/fingerprint.c
+	${CC} ${CFLAGS} -I${FINGERPRINT_INCLUDE_DIR} -I${PROJ_INCLUDE_DIR} -c -o $@ $<
+
+clean:
+	rm -f ${FINGERPRINT_OBJ_DIR}/*.o ${EXECS}
