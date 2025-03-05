@@ -2,6 +2,7 @@
 #define CREATE_HOST_MATRIX_H
 
 #include "dataflow.h"
+#include "math.h"
 
 void * create_zero_host_matrix(uint64_t M, uint64_t N, DataflowDatatype dt, void * opt_dest);
 void * create_rand_host_matrix(uint64_t M, uint64_t N, float mean, float std, DataflowDatatype dt, void * opt_dest);

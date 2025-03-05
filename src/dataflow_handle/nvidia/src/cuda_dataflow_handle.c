@@ -776,6 +776,7 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 		
 	}
 
+	free(function_metadata);
 
 	// SET FUNCTION POINTERS SO COMPUTE HANDLE CAN BE USEFUL...!
 

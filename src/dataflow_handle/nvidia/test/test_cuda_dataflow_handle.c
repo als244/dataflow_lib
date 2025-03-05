@@ -1,5 +1,5 @@
 #include "cuda_dataflow_handle.h"
-
+#include "create_host_matrix.h"
 
 int main(int argc, char * argv[]){
 	
