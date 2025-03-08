@@ -117,7 +117,8 @@ int rms_norm_bwd_x_set_launch_config(Cuda_Launch_Config * cuda_launch_config, Da
 
 	int rms_remain_smem = rms_max_smem - rms_base_smem;
 
-	int rms_max_rows_per_block = rms_remain_smem / sq_sums_dtype_size;
+	// need to save the weighted sums and squared sums
+	int rms_max_rows_per_block = rms_remain_smem / (2 * sq_sums_dtype_size);
 
 	int num_blocks = MY_CEIL(num_rows, rms_max_rows_per_block);
 

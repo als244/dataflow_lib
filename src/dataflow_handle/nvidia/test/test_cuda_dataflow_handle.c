@@ -87,7 +87,8 @@ int main(int argc, char * argv[]){
 	void * orig_matrix = host_mem;
 	void * out_matrix = orig_matrix + mat_size;
 	void * rms_weight = out_matrix + mat_size;
-	void * sq_sums = rms_weight + (el_size * N);
+	void * weighted_sums = rms_weight + (el_size * N);
+	void * sq_sums = weighted_sums + (sizeof(float) * M);
 	void * upstream_dX = sq_sums + (sizeof(float) * M);
 	void * dX = upstream_dX + bwd_mat_size;
 	void * dW = dX + bwd_mat_size;
@@ -152,7 +153,8 @@ int main(int argc, char * argv[]){
 	void * d_orig_matrix = dev_mem;
 	void * d_out_matrix = d_orig_matrix + mat_size;
 	void * d_rms_weight = d_out_matrix + mat_size;
-	void * d_sq_sums = d_rms_weight + (el_size * N);
+	void * d_weighted_sums = d_rms_weight + (el_size * N);
+	void * d_sq_sums = d_weighted_sums + (sizeof(float) * M);
 	void * d_upstream_dX = d_sq_sums + (sizeof(float) * M);
 	void * d_dX = d_upstream_dX + bwd_mat_size;
 	void * d_dW = d_dX + bwd_mat_size;
@@ -210,7 +212,8 @@ int main(int argc, char * argv[]){
 	fwd_op_args[3] = &d_rms_weight;
 	fwd_op_args[4] = &d_orig_matrix;
 	fwd_op_args[5] = &d_out_matrix;
-	fwd_op_args[6] = &d_sq_sums;
+	fwd_op_args[6] = &d_weighted_sums;
+	fwd_op_args[7] = &d_sq_sums;
 
 
 	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_op, compute_stream_id_a);
@@ -243,6 +246,12 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, weighted_sums, d_weighted_sums, M * el_size);
+	if (ret){
+		fprintf(stderr, "Error: could not submit outbound transfer...\n");
+		return -1;
+	}
+
 	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, sq_sums, d_sq_sums, M * el_size);
 	if (ret){
 		fprintf(stderr, "Error: could not submit outbound transfer...\n");
@@ -262,6 +271,7 @@ int main(int argc, char * argv[]){
 	printf("Saving transformed matrix...\n");
 
 	char * out_matrix_filename = "test_rms/fwd_out_matrix.dat";
+	char * weighted_sums_filename = "test_rms/weighted_sums.dat";
 	char * sq_sums_filename = "test_rms/sq_sums.dat";
 
 	ret = save_host_matrix(out_matrix_filename, out_matrix, M, N, fwd_dt);
@@ -270,7 +280,13 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("Saving extra sq sums data returned from op...\n");
+	printf("Saving extra data returned from op...\n");
+
+	ret = save_host_matrix(weighted_sums_filename, weighted_sums, M, 1, DATAFLOW_FP32);
+	if (ret){
+		fprintf(stderr, "Error: failed to save sq sums matrix...\n");
+		return -1;
+	}
 
 	ret = save_host_matrix(sq_sums_filename, sq_sums, M, 1, DATAFLOW_FP32);
 	if (ret){
@@ -289,11 +305,12 @@ int main(int argc, char * argv[]){
 	bwd_x_op_args[0] = &iM;
 	bwd_x_op_args[1] = &iN;
 	bwd_x_op_args[2] = &eps;
-	bwd_x_op_args[3] = &d_sq_sums;
-	bwd_x_op_args[4] = &d_rms_weight;
-	bwd_x_op_args[5] = &d_orig_matrix;
-	bwd_x_op_args[6] = &d_upstream_dX;
-	bwd_x_op_args[7] = &d_dX;
+	bwd_x_op_args[3] = &d_weighted_sums;
+	bwd_x_op_args[4] = &d_sq_sums;
+	bwd_x_op_args[5] = &d_rms_weight;
+	bwd_x_op_args[6] = &d_orig_matrix;
+	bwd_x_op_args[7] = &d_upstream_dX;
+	bwd_x_op_args[8] = &d_dX;
 
 
 	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_bwd_x_op, compute_stream_id_a);
