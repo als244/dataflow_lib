@@ -1,39 +1,6 @@
 #include "cuda_dataflow_handle.h"
 #include "create_host_matrix.h"
-#include "fingerprint.h"
-
-
-void create_rms_norm_op_skeleton(char * op_nickname, Op * op, DataflowDatatype datatype){
-
-	int num_args = 7;
-
-	Op_Skeleton * skeleton = &(op -> op_skeleton);
-
-	Op_Skeleton_Header * skeleton_header = &(skeleton -> header);
-	
-	strncpy(skeleton_header -> op_nickname, op_nickname, MAX_OP_NICKNAME_SIZE);
-	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
-
-
-	skeleton_header -> num_args = 7;
-
-	DataflowDatatype * arg_dtypes = skeleton_header -> arg_dtypes;
-
-	arg_dtypes[0] = DATAFLOW_INT_SCALAR;
-	arg_dtypes[1] = DATAFLOW_INT_SCALAR;
-	arg_dtypes[2] = DATAFLOW_FP32_SCALAR;
-	arg_dtypes[3] = datatype;
-	arg_dtypes[4] = datatype;
-	arg_dtypes[5] = datatype;
-	arg_dtypes[6] = DATAFLOW_FP32;
-
-	for (int i = num_args; i < MAX_OP_ARGS; i++){
-		arg_dtypes[i] = DATAFLOW_NONE;
-	}
-
-
-	do_fingerprinting(skeleton_header, sizeof(Op_Skeleton_Header), (skeleton -> identifier).fingerprint, OP_IDENTIFIER_FINGERPRINT_TYPE);
-}
+#include "set_native_op_skeletons.h"
 
 int main(int argc, char * argv[]){
 	
@@ -99,28 +66,48 @@ int main(int argc, char * argv[]){
 	uint64_t M = 16384;
 	uint64_t N = 8192;
 
+
+	int iM = (int) M;
+	int iN = (int) N;
+
 	float mean = 0.0;
 	float std = 0.006;
 
-	DataflowDatatype dt = DATAFLOW_FP16;
 
-	size_t el_size = dataflow_sizeof_element(dt);
+	float eps = 1e-5;
+
+	DataflowDatatype fwd_dt = DATAFLOW_FP16;
+	DataflowDatatype bwd_dt = DATAFLOW_FP16;
+
+	size_t el_size = dataflow_sizeof_element(fwd_dt);
+	size_t bwd_el_size = dataflow_sizeof_element(fwd_dt);
 	uint64_t mat_size = M * N * el_size;
+	uint64_t bwd_mat_size = M * N * bwd_el_size;
 
 	void * orig_matrix = host_mem;
 	void * out_matrix = orig_matrix + mat_size;
 	void * rms_weight = out_matrix + mat_size;
 	void * sq_sums = rms_weight + (el_size * N);
+	void * upstream_dX = sq_sums + (sizeof(float) * M);
+	void * dX = upstream_dX + bwd_mat_size;
+	void * dW = dX + bwd_mat_size;
 
-	printf("Creating random host matrix (M: %lu, N; %lu, dt: %s)...\n", M, N, dataflow_datatype_as_string(dt));
 
-	void * res = create_rand_host_matrix(M, N, mean, std, dt, orig_matrix);
+	printf("Creating random host matrix (M: %lu, N; %lu, dt: %s)...\n", M, N, dataflow_datatype_as_string(fwd_dt));
+
+	void * res = create_rand_host_matrix(M, N, mean, std, fwd_dt, orig_matrix);
 	if (!res){
 		fprintf(stderr, "Error: creating random host memory matrix failed...\n");
 		return -1;
 	}
 
-	res = create_rand_host_matrix(N, 1, mean, std, dt, rms_weight);
+	res = create_rand_host_matrix(N, 1, mean, std, fwd_dt, rms_weight);
+	if (!res){
+		fprintf(stderr, "Error: creating random host memory matrix failed...\n");
+		return -1;
+	}
+
+	res = create_rand_host_matrix(M, N, mean, std, bwd_dt, upstream_dX);
 	if (!res){
 		fprintf(stderr, "Error: creating random host memory matrix failed...\n");
 		return -1;
@@ -128,16 +115,23 @@ int main(int argc, char * argv[]){
 
 	printf("Saving orig matrix...\n");
 
-	char * orig_matrix_filename = "test_data/orig_matrix.dat";
-	char * rms_weight_filename = "test_data/weights.dat";
+	char * orig_matrix_filename = "test_rms/orig_matrix.dat";
+	char * rms_weight_filename = "test_rms/weights.dat";
+	char * upstream_dX_filename = "test_rms/upstream_dX.dat";
 
-	ret = save_host_matrix(orig_matrix_filename, orig_matrix, M, N, dt);
+	ret = save_host_matrix(orig_matrix_filename, orig_matrix, M, N, fwd_dt);
 	if (ret){
 		fprintf(stderr, "Error: failed to save original matrix...\n");
 		return -1;
 	}
 
-	ret = save_host_matrix(rms_weight_filename, rms_weight, N, 1, dt);
+	ret = save_host_matrix(rms_weight_filename, rms_weight, N, 1, fwd_dt);
+	if (ret){
+		fprintf(stderr, "Error: failed to save original matrix...\n");
+		return -1;
+	}
+
+	ret = save_host_matrix(upstream_dX_filename, upstream_dX, M, N, bwd_dt);
 	if (ret){
 		fprintf(stderr, "Error: failed to save original matrix...\n");
 		return -1;
@@ -159,6 +153,9 @@ int main(int argc, char * argv[]){
 	void * d_out_matrix = d_orig_matrix + mat_size;
 	void * d_rms_weight = d_out_matrix + mat_size;
 	void * d_sq_sums = d_rms_weight + (el_size * N);
+	void * d_upstream_dX = d_sq_sums + (sizeof(float) * M);
+	void * d_dX = d_upstream_dX + bwd_mat_size;
+	void * d_dW = d_dX + bwd_mat_size;
 
 
 	printf("Transferring matrix on host to device of size: %lu...\n", mat_size);
@@ -184,6 +181,12 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_upstream_dX, upstream_dX, bwd_mat_size);
+	if (ret){
+		fprintf(stderr, "Error: host to device transfer failed...\n");
+		return -1;
+	}
+
 	printf("Syncing with device after transfer...\n");
 
 	ret = cuda_dataflow_handle.sync_stream(&cuda_dataflow_handle, inbound_stream_id_a);
@@ -193,29 +196,21 @@ int main(int argc, char * argv[]){
 	}
 
 
-
 	printf("Submitting RMS norm op...!\n");
 
 	Op rms_norm_op;
 
-	char * rms_nickname = "rms_norm_fp16";
+	set_native_rms_norm_skeleton(&rms_norm_op.op_skeleton, fwd_dt);
 
-	create_rms_norm_op_skeleton(rms_nickname, &rms_norm_op, dt);
+	void ** fwd_op_args = rms_norm_op.op_args;
 
-	void ** op_args = rms_norm_op.op_args;
-
-	float eps = 1e-5;
-
-	int iM = (int) M;
-	int iN = (int) N;
-
-	op_args[0] = &iM;
-	op_args[1] = &iN;
-	op_args[2] = &eps;
-	op_args[3] = &d_rms_weight;
-	op_args[4] = &d_orig_matrix;
-	op_args[5] = &d_out_matrix;
-	op_args[6] = &d_sq_sums;
+	fwd_op_args[0] = &iM;
+	fwd_op_args[1] = &iN;
+	fwd_op_args[2] = &eps;
+	fwd_op_args[3] = &d_rms_weight;
+	fwd_op_args[4] = &d_orig_matrix;
+	fwd_op_args[5] = &d_out_matrix;
+	fwd_op_args[6] = &d_sq_sums;
 
 
 	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_op, compute_stream_id_a);
@@ -254,7 +249,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	printf("Syncing wiht outbound transfer...\n");
+	printf("Syncing with outbound transfer...\n");
 
 
 	ret = cuda_dataflow_handle.sync_stream(&cuda_dataflow_handle, outbound_stream_id_a);
@@ -266,16 +261,16 @@ int main(int argc, char * argv[]){
 
 	printf("Saving transformed matrix...\n");
 
-	char * out_matrix_filename = "test_data/out_matrix.dat";
-	char * sq_sums_filename = "test_data/sq_sums.dat";
+	char * out_matrix_filename = "test_rms/fwd_out_matrix.dat";
+	char * sq_sums_filename = "test_rms/sq_sums.dat";
 
-	ret = save_host_matrix(out_matrix_filename, out_matrix, M, N, dt);
+	ret = save_host_matrix(out_matrix_filename, out_matrix, M, N, fwd_dt);
 	if (ret){
 		fprintf(stderr, "Error: failed to save output matrix...\n");
 		return -1;
 	}
 
-	printf("Saving extra data returned from op...\n");
+	printf("Saving extra sq sums data returned from op...\n");
 
 	ret = save_host_matrix(sq_sums_filename, sq_sums, M, 1, DATAFLOW_FP32);
 	if (ret){
@@ -284,10 +279,141 @@ int main(int argc, char * argv[]){
 	}
 
 
+	printf("Doing BWD X op...\n");
+	Op rms_norm_bwd_x_op;
+
+	set_native_rms_norm_bwd_x_skeleton(&rms_norm_bwd_x_op.op_skeleton, fwd_dt, bwd_dt);
+
+	void ** bwd_x_op_args = rms_norm_bwd_x_op.op_args;
+
+	bwd_x_op_args[0] = &iM;
+	bwd_x_op_args[1] = &iN;
+	bwd_x_op_args[2] = &eps;
+	bwd_x_op_args[3] = &d_sq_sums;
+	bwd_x_op_args[4] = &d_rms_weight;
+	bwd_x_op_args[5] = &d_orig_matrix;
+	bwd_x_op_args[6] = &d_upstream_dX;
+	bwd_x_op_args[7] = &d_dX;
+
+
+	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_bwd_x_op, compute_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit op...\n");
+		return -1;
+	}
+
+	printf("Submitting dependency for outbound BWD X transfer...\n");
+
+	compute_stream_state = cuda_dataflow_handle.get_stream_state(&cuda_dataflow_handle, compute_stream_id_a);
+	if (!compute_stream_state){
+		fprintf(stderr, "Error: failed to get stream state...\n");
+		return -1;
+	}
+
+	ret = cuda_dataflow_handle.submit_dependency(&cuda_dataflow_handle, outbound_stream_id_a, compute_stream_state);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit dependency...\n");
+		return -1;
+	}
+
+
+	printf("Submitting outbound BWD X transfer...\n");
+
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, dX, d_dX, bwd_mat_size);
+	if (ret){
+		fprintf(stderr, "Error: could not submit outbound transfer...\n");
+		return -1;
+	}
+
+	printf("Syncing outbound stream and saving dX...\n");
+
+	ret = cuda_dataflow_handle.sync_stream(&cuda_dataflow_handle, outbound_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to sync stream after transfer back to host...\n");
+		return -1;
+	}
+
+	char * dX_filename = "test_rms/dX_matrix.dat";
+
+	ret = save_host_matrix(dX_filename, dX, M, N, bwd_dt);
+	if (ret){
+		fprintf(stderr, "Error: failed to save output matrix...\n");
+		return -1;
+	}
+
+
+	printf("Doing BWD W op...\n");
+
+	Op rms_norm_bwd_w_op;
+
+	set_native_rms_norm_bwd_w_skeleton(&rms_norm_bwd_w_op.op_skeleton, fwd_dt, bwd_dt);
+
+	void ** bwd_w_op_args = rms_norm_bwd_w_op.op_args;
+
+	bwd_w_op_args[0] = &iM;
+	bwd_w_op_args[1] = &iN;
+	bwd_w_op_args[2] = &eps;
+	bwd_w_op_args[3] = &d_sq_sums;
+	bwd_w_op_args[4] = &d_orig_matrix;
+	bwd_w_op_args[5] = &d_upstream_dX;
+	bwd_w_op_args[6] = &d_dW;
+
+
+	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_bwd_w_op, compute_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit op...\n");
+		return -1;
+	}
+
+	printf("Submitting dependency for outbound BWD W transfer...\n");
+
+	compute_stream_state = cuda_dataflow_handle.get_stream_state(&cuda_dataflow_handle, compute_stream_id_a);
+	if (!compute_stream_state){
+		fprintf(stderr, "Error: failed to get stream state...\n");
+		return -1;
+	}
+
+	ret = cuda_dataflow_handle.submit_dependency(&cuda_dataflow_handle, outbound_stream_id_a, compute_stream_state);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit dependency...\n");
+		return -1;
+	}
+
+
+	printf("Submitting outbound BWD W transfer...\n");	
+
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, dW, d_dW, N * el_size);
+	if (ret){
+		fprintf(stderr, "Error: could not submit outbound transfer...\n");
+		return -1;
+	}
+
+
+	ret = cuda_dataflow_handle.sync_stream(&cuda_dataflow_handle, outbound_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to sync stream after transfer back to host...\n");
+		return -1;
+	}
+
+
+	printf("Syncing outbound stream and saving dW...\n");
+	
+	ret = cuda_dataflow_handle.sync_stream(&cuda_dataflow_handle, outbound_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to sync stream after transfer back to host...\n");
+		return -1;
+	}
+
+	char * dW_filename = "test_rms/dWeights.dat";
+
+	ret = save_host_matrix(dW_filename, dW, N, 1, fwd_dt);
+	if (ret){
+		fprintf(stderr, "Error: failed to save sq sums matrix...\n");
+		return -1;
+	}
+
+
 	printf("\n\n\nSuccessfully Performed Op...!!!\n");
-
-
-
 
 	return 0;
 }

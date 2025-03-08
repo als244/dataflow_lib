@@ -65,22 +65,24 @@ struct dataflow_handle {
 	// space to actually load native module and functions
 	void * function_lib;
 
-	// table containing mapping of op_skeleton.fingerprint => backend specific function info
+	// Table containing mapping of op_skeleton.fingerprint => backend specific function info/launch func pointers
 	// initially populated using combination of native function lib (pre-compiled into native assembly)
 	// and external function pointers from other shared libs
 	Table op_table;
 	
 
-
-	// Functions to Implement...
+	// Backend Required Functions...
 
 	
-	// Compute Functionality
+	// 1.) COMPUTE Functionality
+	
 	int (*submit_op)(Dataflow_Handle * dataflow_handle, Op * op, int stream_id);
 	int (*submit_host_op)(Dataflow_Handle * dataflow_handle, void * host_func, void * host_func_arg, int stream_id);
 
-	// Dependencies Functionality
 
+	
+	// 2.) DEPENDENCIES Functionality 
+	
 	// records event and returns a reference to event that can be passed to same/different dataflow handle
 	void * (*get_stream_state)(Dataflow_Handle * dataflow_handle, int stream_id);
 	int (*submit_dependency)(Dataflow_Handle * dataflow_handle, int stream_id, void * other_stream_state);
@@ -88,9 +90,10 @@ struct dataflow_handle {
 	// Synchronizes all streams
 	int (*sync_handle)(Dataflow_Handle * dataflow_handle);
 
-	// Memory Functionality
-
-	// Memory allocs and frees are slow and globally synchronizing, so these should be embedded within
+	
+	// 3.) MEMORY Functionality
+	
+	// Note: Memory allocs and frees are slow and globally synchronizing, so these should be embedded within
 	// a higher layer of memory management. Bulk call to alloc that then can be oragnized elsewhere...
 	void * (*alloc_mem)(Dataflow_Handle * dataflow_handle, uint64_t size_bytes);
 	void (*free_mem)(Dataflow_Handle * dataflow_handle, void * dev_ptr);
@@ -104,8 +107,8 @@ struct dataflow_handle {
 	int (*disable_access_to_peer_mem)(Dataflow_Handle * dataflow_handle, Dataflow_Handle * peer_dataflow_handle);
 	
 
-	// Transfer Functionality
-
+	// 4.) TRANSFER Functionality
+	
 	// From/to host memory
 	int (*submit_inbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_dest, void * host_src, uint64_t size_bytes);
 	int (*submit_outbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * host_dest, void * dev_src, uint64_t size_bytes);

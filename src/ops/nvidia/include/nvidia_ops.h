@@ -53,22 +53,22 @@ extern "C" __global__ void rms_norm_fp8e4m3_kernel(int n_rows, int n_cols, float
 extern "C" __global__ void rms_norm_fp8e5m2_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X, __nv_fp8_e5m2 * out, float * sq_sums);
 
 // Backward Activation
-extern "C" __global__ void rms_norm_bwd_x_fp32_kernel(int n_rows, int n_cols, float eps, float * rms_weight, float * X_inp, float * sq_sums, float * upstream_dX, float * dX);
-extern "C" __global__ void rms_norm_bwd_x_fp16_kernel(int n_rows, int n_cols, float eps, __half * rms_weight, __half * X_inp, float * sq_sums, __half * upstream_dX, __half * dX);
-extern "C" __global__ void rms_norm_bwd_x_bf16_kernel(int n_rows, int n_cols, float eps, __nv_bfloat16 * rms_weight, __nv_bfloat16 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
-extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_cols,float eps,  __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, float * sq_sums, __half * upstream_dX, __half * dX);
-extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
-extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, float * sq_sums, __half * upstream_dX, __half * dX);
-extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, float * rms_weight, float * X_inp, float * upstream_dX, float * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __half * rms_weight, __half * X_inp, __half * upstream_dX, __half * dX);
+extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_bfloat16 * rms_weight, __nv_bfloat16 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_cols,float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, __half * upstream_dX, __half * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, __half * upstream_dX, __half * dX);
+extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX);
 
 // Backward Weights
-extern "C" __global__ void rms_norm_bwd_w_fp32_kernel(int n_rows, int n_cols, float eps, float * X_inp, float * sq_sums, float * upstream_dX, float * dW);
-extern "C" __global__ void rms_norm_bwd_w_fp16_kernel(int n_rows, int n_cols, float eps, __half * X_inp, float * sq_sums, __half * upstream_dX, __half * dW);
-extern "C" __global__ void rms_norm_bwd_w_bf16_kernel(int n_rows, int n_cols, float eps, __nv_bfloat16 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
-extern "C" __global__ void rms_norm_bwd_w_fp8e4m3_fp16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e4m3 * X_inp, float * sq_sums, __half * upstream_dX, __half * dW);
-extern "C" __global__ void rms_norm_bwd_w_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e4m3 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
-extern "C" __global__ void rms_norm_bwd_w_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * X_inp, float * sq_sums, __half * upstream_dX, __half * dW);
-extern "C" __global__ void rms_norm_bwd_w_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp32_fp32_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, float * X_inp, float * upstream_dX, float * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp16_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __half * X_inp, __half * upstream_dX, __half * dW);
+extern "C" __global__ void rms_norm_bwd_w_bf16_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_bfloat16 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp8e4m3_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * X_inp, __half * upstream_dX, __half * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * X_inp, __half * upstream_dX, __half * dW);
+extern "C" __global__ void rms_norm_bwd_w_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dW);
 
 
 
@@ -77,17 +77,17 @@ extern "C" __global__ void rms_norm_bwd_w_fp8e5m2_bf16_kernel(int n_rows, int n_
 // Attention Misc
 
 // Forward
-extern "C" __global__ void rope_fp32_kernel(int theta, uint64_t N, int model_dim, int head_dim, int num_kv_heads, int * seq_positions, float * X_q, float * X_k);
-extern "C" __global__ void rope_fp16_kernel(int theta, uint64_t N, int model_dim, int head_dim, int num_kv_heads, int * seq_positions, __half * X_q, __half * X_k);
-extern "C" __global__ void rope_bf16_kernel(int theta, uint64_t N, int model_dim, int head_dim, int num_kv_heads, int * seq_positions, __nv_bfloat16 * X_q, __nv_bfloat16 * X_k);
-extern "C" __global__ void rope_fp8e4m3_kernel(int theta, uint64_t N, int model_dim, int head_dim, int num_kv_heads, int * seq_positions, __nv_fp8_e4m3 * X_q, __nv_fp8_e4m3 * X_k);
-extern "C" __global__ void rope_fp8e5m2_kernel(int theta, uint64_t N, int model_dim, int head_dim, int num_kv_heads, int * seq_positions, __nv_fp8_e5m2 * X_q, __nv_fp8_e5m2 * X_k);
+extern "C" __global__ void rope_fp32_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, float * X_q, float * X_k);
+extern "C" __global__ void rope_fp16_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __half * X_q, __half * X_k);
+extern "C" __global__ void rope_bf16_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __nv_bfloat16 * X_q, __nv_bfloat16 * X_k);
+extern "C" __global__ void rope_fp8e4m3_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __nv_fp8_e4m3 * X_q, __nv_fp8_e4m3 * X_k);
+extern "C" __global__ void rope_fp8e5m2_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __nv_fp8_e5m2 * X_q, __nv_fp8_e5m2 * X_k);
 
-extern "C" __global__ void copy_kv_to_seq_context_fp32_kernel(uint64_t N, int total_tokens, int kv_dim, float * keys, float * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
-extern "C" __global__ void copy_kv_to_seq_context_fp16_kernel(uint64_t N, int total_tokens, int kv_dim, __half * keys, __half * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
-extern "C" __global__ void copy_kv_to_seq_context_bf16_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_bfloat16 * keys, __nv_bfloat16 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
-extern "C" __global__ void copy_kv_to_seq_context_fp8e4m3_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_fp8_e4m3 * keys, __nv_fp8_e4m3 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
-extern "C" __global__ void copy_kv_to_seq_context_fp8e5m2_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_fp8_e5m2 * keys, __nv_fp8_e5m2 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
+extern "C" __global__ void copy_to_seq_context_fp32_kernel(uint64_t N, int total_tokens, int kv_dim, float * keys, float * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
+extern "C" __global__ void copy_to_seq_context_fp16_kernel(uint64_t N, int total_tokens, int kv_dim, __half * keys, __half * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
+extern "C" __global__ void copy_to_seq_context_bf16_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_bfloat16 * keys, __nv_bfloat16 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
+extern "C" __global__ void copy_to_seq_context_fp8e4m3_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_fp8_e4m3 * keys, __nv_fp8_e4m3 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
+extern "C" __global__ void copy_to_seq_context_fp8e5m2_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_fp8_e5m2 * keys, __nv_fp8_e5m2 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
 
 
 
@@ -132,16 +132,17 @@ extern "C" __global__ void silu_hadamard_bwd_x_fp8e5m2_bf16_kernel(int num_rows,
 
 
 // Softmax
-extern "C" __global__ void softmax_fp32_kernel(int n_cols, float * X, float * out);
-extern "C" __global__ void softmax_fp16_kernel(int n_cols, __half * X, __half * out);
-extern "C" __global__ void softmax_bf16_kernel(int n_cols, __nv_bfloat16 * X, __nv_bfloat16 * out);
-extern "C" __global__ void softmax_fp8e4m3_to_fp16_kernel(int n_cols, __nv_fp8_e4m3 * X, __half * out);
-extern "C" __global__ void softmax_fp8e4m3_to_bf16_kernel(int n_cols, __nv_fp8_e4m3 * X, __nv_bfloat16 * out);
-extern "C" __global__ void softmax_fp8e5m2_to_fp16_kernel(int n_cols, __nv_fp8_e5m2 * X, __half * out);
-extern "C" __global__ void softmax_fp8e5m2_to_bf16_kernel(int n_cols, __nv_fp8_e5m2 * X, __nv_bfloat16 * out);
+extern "C" __global__ void softmax_fp32_fp32_kernel(int n_rows, int n_cols, float * X, float * out);
+extern "C" __global__ void softmax_fp16_fp16_kernel(int n_rows, int n_cols, __half * X, __half * out);
+extern "C" __global__ void softmax_bf16_bf16_kernel(int n_rows, int n_cols, __nv_bfloat16 * X, __nv_bfloat16 * out);
+extern "C" __global__ void softmax_fp8e4m3_fp16_kernel(int n_rows, int n_cols, __nv_fp8_e4m3 * X, __half * out);
+extern "C" __global__ void softmax_fp8e4m3_bf16_kernel(int n_rows, int n_cols, __nv_fp8_e4m3 * X, __nv_bfloat16 * out);
+extern "C" __global__ void softmax_fp8e5m2_fp16_kernel(int n_rows, int n_cols, __nv_fp8_e5m2 * X, __half * out);
+extern "C" __global__ void softmax_fp8e5m2_bf16_kernel(int n_rows, int n_cols, __nv_fp8_e5m2 * X, __nv_bfloat16 * out);
 
 
 // Loss Functions Over Logits
+// Inplace
 extern "C" __global__ void cross_entropy_loss_fp32_kernel(int n_rows, int n_cols, float * pred_logits, uint32_t * labels);
 extern "C" __global__ void cross_entropy_loss_fp16_kernel(int n_rows, int n_cols, __half * pred_logits, uint32_t * labels);
 extern "C" __global__ void cross_entropy_loss_bf16_kernel(int n_rows, int n_cols, __nv_bfloat16 * pred_logits, uint32_t * labels);

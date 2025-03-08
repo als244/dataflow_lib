@@ -17,6 +17,7 @@ CUDA_DATAFLOW_HANDLE_HEADER = ../../dataflow_handle/nvidia/include
 DATATYPE_HEADER = ../../datatype/include
 TABLE_HEADER = ../../table/include
 FINGERPRINT_HEADER = ../../fingerprint/include
+SET_NATIVE_OPS_HEADER = set_native_ops/include
 OPS_HEADER = ../include
 CUDA_OPS_HEADER = include
 
@@ -25,10 +26,10 @@ GEN_LIB_NAME = build/cuda_kernels
 CUDA_KERNELS_SRC = cuda_kernels.cu
 
 SAVE_FUNC_EXEC = save_func_meta
-SAVE_FUNC_OBJ_DEPENDS = ../../fingerprint/objs/fingerprint.o
+SAVE_FUNC_OBJ_DEPENDS = ../../fingerprint/objs/fingerprint.o ../../datatype/objs/dataflow_datatype.o ../../datatype/objs/convert_datatype.o ../../datatype/objs/convert_datatype_avx512.o set_native_ops/objs/set_native_op_skeletons.o
 SAVE_FUNC_LIB_DEPENDS = -lcrypto
 
-NATIVE_FUNC_SRC_FILES = activations/swiglu_config.c norm/rms_norm_config.c
+NATIVE_FUNC_SRC_FILES = norm/rms_norm_config.c attention/attn_misc_config.c activations/swiglu_config.c loss/loss_misc_config.c
 NATIVE_FUNC_LIB_OBJ_DEPENDS = ../../dataflow_handle/nvidia/objs/cuda_drv.o ../../datatype/objs/dataflow_datatype.o
 
 NATIVE_FUNC_LIB = build/cuda_kernels_config.so
@@ -39,7 +40,7 @@ ${NATIVE_FUNC_LIB}: ${NATIVE_FUNC_SRC_FILES} ${NATIVE_FUNC_LIB_OBJ_DEPENDS}
 	gcc -g -fPIC -shared -I${CUDA_OPS_HEADER} -I${CUDA_DATAFLOW_HANDLE_HEADER} -I${OPS_HEADER} -I${DATAFLOW_HANDLE_HEADER} -I${TABLE_HEADER} -I${FINGERPRINT_HEADER} -I${DATATYPE_HEADER} -I${PROJ_COMMON_HEADER} -I${CUDA_INCLUDE_DIR} $^ -o $@ -L${CUDA_LIB_DIR} ${CUDA_LIB_DEPENDS}
 
 ${SAVE_FUNC_EXEC}: save_func_meta.c ${SAVE_FUNC_OBJ_DEPENDS}
-	gcc -g -I${OPS_HEADER} -I${DATAFLOW_HANDLE_HEADER} -I${TABLE_HEADER} -I${FINGERPRINT_HEADER} -I${DATATYPE_HEADER} -I${PROJ_COMMON_HEADER} $^ -o $@ ${SAVE_FUNC_LIB_DEPENDS}
+	gcc -g -I${OPS_HEADER} -I ${SET_NATIVE_OPS_HEADER} -I${DATAFLOW_HANDLE_HEADER} -I${TABLE_HEADER} -I${FINGERPRINT_HEADER} -I${DATATYPE_HEADER} -I${PROJ_COMMON_HEADER} $^ -o $@ ${SAVE_FUNC_LIB_DEPENDS}
 
 cuda_kernels_ptx: ${CUDA_KERNELS_SRC} 
 	nvcc ${NVCC_FLAGS} -I${CUDA_OPS_HEADER} -I${PROJ_COMMON_HEADER} -o ${GEN_LIB_NAME}.ptx -ptx $^ -arch=compute_${CUDA_ARCH_NUM} -code=sm_${CUDA_ARCH_NUM}

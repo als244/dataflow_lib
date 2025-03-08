@@ -1,22 +1,21 @@
 #include "nvidia_ops.h"
 
 
-extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_cols, float eps, float * rms_weight, float * X_inp, float * sq_sums, float * upstream_dX, float * dX) {
+extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, float * rms_weight, float * X_inp, float * upstream_dX, float * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
 
 
-	// length should be equal to number of rows
-	// load in squared sums and then divide by n_cols and take sqrt
+	// length should be equal to model dim
 	float * weights_scaled = (float *) sdata;
 
 	// working space when computing weight derivs...
 	// the dot products will be updated here and when complete
 	// will accumulate in dW
 
-	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	// length equal to the maximum number of rows per block
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -48,8 +47,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_col
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -64,7 +64,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_col
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -82,7 +82,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp32_fp32_kernel(int n_rows, int n_col
 // Here dX is (N, model_dim) and contains the backprop loss flow that we will update in-place
 // This needs to be called after the bwd_weight because the weight we use the updstream dL/dX and this function will
 // modify the same pointer...
-extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_cols, float eps, __half * rms_weight, __half * X_inp, float * sq_sums, __half * upstream_dX, __half * dX){
+extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __half * rms_weight, __half * X_inp, __half * upstream_dX, __half * dX){
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -98,7 +98,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_col
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -130,8 +130,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_col
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -146,7 +147,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_col
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -161,7 +162,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp16_fp16_kernel(int n_rows, int n_col
 }
 
 
-extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_cols, float eps, __nv_bfloat16 * rms_weight, __nv_bfloat16 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
+extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_bfloat16 * rms_weight, __nv_bfloat16 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -177,7 +178,7 @@ extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_col
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -209,8 +210,9 @@ extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_col
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -225,7 +227,7 @@ extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_col
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -240,7 +242,7 @@ extern "C" __global__ void rms_norm_bwd_x_bf16_bf16_kernel(int n_rows, int n_col
 }
 
 
-extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, float * sq_sums, __half * upstream_dX, __half * dX) {
+extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, __half * upstream_dX, __half * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -256,7 +258,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -288,8 +290,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -304,7 +307,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -318,7 +321,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_
 	}
 }
 
-extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
+extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e4m3 * rms_weight, __nv_fp8_e4m3 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -334,7 +337,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -366,8 +369,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -382,7 +386,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -397,7 +401,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_bf16_kernel(int n_rows, int n_
 }
 
 
-extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, float * sq_sums, __half * upstream_dX, __half * dX) {
+extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, __half * upstream_dX, __half * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -413,7 +417,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -445,8 +449,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -461,7 +466,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
@@ -475,7 +480,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_fp16_kernel(int n_rows, int n_
 	}
 }
 
-extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, float * sq_sums, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
+extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_cols, float eps, float * fwd_sq_sums, __nv_fp8_e5m2 * rms_weight, __nv_fp8_e5m2 * X_inp, __nv_bfloat16 * upstream_dX, __nv_bfloat16 * dX) {
 		
 	// this gets dynamically allocated the size of model_dim
 	extern __shared__ uint8_t sdata[];
@@ -491,7 +496,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_
 	// will accumulate in dW
 
 	// length equal to the number of columns
-	float * shared_sq_sums = (float *) (weights_scaled + n_cols); 
+	float * shared_fwd_sq_sums = (float *) (weights_scaled + n_cols); 
 
 	int row_base = blockIdx.x;
 
@@ -523,8 +528,9 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_
 	}
 
 	// retrieve back the recip squared avgs
-	for (uint64_t i = thread_id; i < n_rows; i+=blockDim.x){
-		shared_sq_sums[i] = sq_sums[i];
+	// corresponding to this blocks rows
+	for (int i = row_offset + thread_id; i < row_offset + rows_per_block; i+=blockDim.x){
+		shared_fwd_sq_sums[i - row_offset] = fwd_sq_sums[i];
 	}
 
 	__syncthreads();
@@ -539,7 +545,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e5m2_bf16_kernel(int n_rows, int n_
 	for (int row_id = row_offset; row_id < row_offset + rows_per_block; row_id++){
 		row_ind_start = (uint64_t) (row_id) * (uint64_t) n_cols;
 
-		cur_sq_sum = shared_sq_sums[row_id];
+		cur_sq_sum = shared_fwd_sq_sums[row_id - row_offset];
 		cur_sq_sum_rsqrt = rsqrtf(cur_sq_sum);
 		
 		for (int i = thread_id; i < n_cols; i+=blockDim.x){
