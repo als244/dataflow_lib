@@ -107,7 +107,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	res = create_rand_host_matrix(M, N, mean, std, bwd_dt, upstream_dX);
+	res = create_rand_host_matrix(M, N, 1.0, 0, bwd_dt, upstream_dX);
 	if (!res){
 		fprintf(stderr, "Error: creating random host memory matrix failed...\n");
 		return -1;
