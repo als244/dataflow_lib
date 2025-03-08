@@ -3,8 +3,8 @@
 
 float rand_normal(float mean, float std) {
 
-	if ((mean == 0) && (std == 0)){
-		return 0;
+	if (std == 0){
+		return mean;
 	}
 
     static float spare;
