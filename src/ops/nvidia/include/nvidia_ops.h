@@ -83,6 +83,13 @@ extern "C" __global__ void rope_bf16_kernel(uint64_t N, int model_dim, int head_
 extern "C" __global__ void rope_fp8e4m3_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __nv_fp8_e4m3 * X_q, __nv_fp8_e4m3 * X_k);
 extern "C" __global__ void rope_fp8e5m2_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int * seq_positions, __nv_fp8_e5m2 * X_q, __nv_fp8_e5m2 * X_k);
 
+
+extern "C" __global__ void rope_bwd_x_fp32_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int *seq_positions, float *dX_q, float *dX_k);
+extern "C" __global__ void rope_bwd_x_fp16_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int *seq_positions, __half *dX_q, __half *dX_k);
+extern "C" __global__ void rope_bwd_x_bf16_kernel(uint64_t N, int model_dim, int head_dim, int num_kv_heads, int theta, int *seq_positions, __nv_bfloat16 *dX_q, __nv_bfloat16 *dX_k);
+
+
+
 extern "C" __global__ void copy_to_seq_context_fp32_kernel(uint64_t N, int total_tokens, int kv_dim, float * keys, float * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
 extern "C" __global__ void copy_to_seq_context_fp16_kernel(uint64_t N, int total_tokens, int kv_dim, __half * keys, __half * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
 extern "C" __global__ void copy_to_seq_context_bf16_kernel(uint64_t N, int total_tokens, int kv_dim, __nv_bfloat16 * keys, __nv_bfloat16 * values, int * seq_positions, uint64_t * seq_context_ptrs, int * seq_context_sizes);
