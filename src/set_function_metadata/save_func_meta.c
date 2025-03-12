@@ -279,7 +279,7 @@ int main(int argc, char * argv[]){
 
 	// NOW SAVE ALL FUNC META ARRAY....!
 
-	char * all_func_meta_filepath = "build/cuda_all_functions_meta.dat";
+	char * all_func_meta_filepath = "../ops/nvidia/build/cuda_all_functions_meta.dat";
 
 	FILE * fp = fopen(all_func_meta_filepath, "wb");
 	if (!fp){
@@ -298,7 +298,7 @@ int main(int argc, char * argv[]){
 	fclose(fp);
 	free(all_func_meta);
 
-	printf("Success! Saved %d functions with path: %s...\n", cur_func_cnt, all_func_meta_filepath);
+	printf("Success! Saved %d functions with path: %s\n", cur_func_cnt, all_func_meta_filepath);
 
 	return 0;
 }
