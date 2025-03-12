@@ -9,7 +9,7 @@ HANDLE_INCLUDE_DIR = ../dataflow_handle/include
 TRANSFORMER_OP_INCLUDE_DIR = include
 TABLE_INCLUDE_DIR = ../table/include
 FINGERPRINT_INCLUDE_DIR = ../fingerprint/include
-NATIVE_OPS_INCLUDE_DIR = ../ops/set_native_ops/include
+NATIVE_OPS_INCLUDE_DIR = ../set_native_ops/include
 
 TRANSFORMER_OP_OBJS = objs/norm_ops.o objs/attn_misc_ops.o objs/mlp_misc_ops.o objs/loss_misc_ops.o 
 
