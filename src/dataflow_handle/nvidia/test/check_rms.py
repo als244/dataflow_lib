@@ -9,18 +9,19 @@ def torch_rms(x, weights, eps):
 
 
 
-def load_native_rms(M, N, fwd_dtype, bwd_dtype, sq_sum_dtype):
+def load_native_rms(M, N, fwd_dtype, bwd_dtype, rms_val_dtype):
 	
 	orig = np.fromfile("test_rms/orig_matrix.dat", dtype=fwd_dtype).reshape(M, N)
 	weights = np.fromfile("test_rms/weights.dat", dtype=fwd_dtype).reshape(N)
 	out = np.fromfile("test_rms/fwd_out_matrix.dat", dtype=fwd_dtype).reshape(M, N)
-	sq_sums = np.fromfile("test_rms/sq_sums.dat", dtype=sq_sum_dtype).reshape(M)
+	weighted_sums = np.fromfile("test_rms/weighted_sums.dat", dtype=rms_val_dtype).reshape(M)
+	rms_vals = np.fromfile("test_rms/rms_vals.dat", dtype=rms_val_dtype).reshape(M)
 
 	upstream_dX = np.fromfile("test_rms/upstream_dX.dat", dtype=bwd_dtype).reshape(M, N)
 	dX = np.fromfile("test_rms/dX_matrix.dat", dtype=bwd_dtype).reshape(M, N)
 	dW = np.fromfile("test_rms/dWeights.dat", dtype=bwd_dtype).reshape(N)
 
-	return orig, weights, out, sq_sums, upstream_dX, dX, dW
+	return orig, weights, out, weighted_sums, rms_vals,  upstream_dX, dX, dW
 
 
 
@@ -31,10 +32,10 @@ eps = 1e-5
 
 fwd_dtype = np.float16
 bwd_dtype = np.float16
-sq_sum_dtype = np.float32
+rms_val_dtype = np.float32
 
 
-orig, weights, out, sq_sums, upstream_dX, dX, dW = load_native_rms(M, N, fwd_dtype, bwd_dtype, sq_sum_dtype)
+orig, weights, out, weighted_sums, rms_vals, upstream_dX, dX, dW = load_native_rms(M, N, fwd_dtype, bwd_dtype, rms_val_dtype)
 
 
 torch_orig = torch.from_numpy(orig).requires_grad_(True)

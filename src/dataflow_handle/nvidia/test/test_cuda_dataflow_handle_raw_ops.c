@@ -200,11 +200,36 @@ int main(int argc, char * argv[]){
 
 	printf("Submitting RMS norm op...!\n");
 	
-	ret = submit_rms_norm(&cuda_dataflow_handle, compute_stream_id_a, fwd_dt, iM, iN, eps, d_rms_weight, d_orig_matrix, d_out_matrix, d_weighted_sums, d_rms_vals);
+	/*
+	ret = submit_rms_norm(handle, stream_id, fwd_dt, n_rows, n_cols, eps, rms_weight, d_orig_matrix, d_out_matrix, d_weighted_sums, d_rms_vals);
 	if (ret){
 		fprintf(stderr, "Error: could not submit rms nrom...\n");
 		return -1;
 	}
+	*/
+
+	Op rms_norm_op;
+
+	set_native_rms_norm_skeleton(&rms_norm_op.op_skeleton, fwd_dt);
+
+	void ** fwd_op_args = rms_norm_op.op_args;
+
+	fwd_op_args[0] = &iM;
+	fwd_op_args[1] = &iN;
+	fwd_op_args[2] = &eps;
+	fwd_op_args[3] = &d_rms_weight;
+	fwd_op_args[4] = &d_orig_matrix;
+	fwd_op_args[5] = &d_out_matrix;
+	fwd_op_args[6] = &d_weighted_sums;
+	fwd_op_args[7] = &d_rms_vals;
+
+
+	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_op, compute_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit op...\n");
+		return -1;
+	}
+
 
 	printf("Submitting dependency for outbound transfer...\n");
 
@@ -279,13 +304,26 @@ int main(int argc, char * argv[]){
 
 
 	printf("Doing BWD X op...\n");
+	Op rms_norm_bwd_x_op;
 
-	ret = submit_rms_norm_bwd_x(&cuda_dataflow_handle, compute_stream_id_a, fwd_dt, bwd_dt, 
-									iM, iN, eps, d_weighted_sums, d_rms_vals,
-								 	d_rms_weight, d_orig_matrix, d_upstream_dX, d_dX);
+	set_native_rms_norm_bwd_x_skeleton(&rms_norm_bwd_x_op.op_skeleton, fwd_dt, bwd_dt);
 
+	void ** bwd_x_op_args = rms_norm_bwd_x_op.op_args;
+
+	bwd_x_op_args[0] = &iM;
+	bwd_x_op_args[1] = &iN;
+	bwd_x_op_args[2] = &eps;
+	bwd_x_op_args[3] = &d_weighted_sums;
+	bwd_x_op_args[4] = &d_rms_vals;
+	bwd_x_op_args[5] = &d_rms_weight;
+	bwd_x_op_args[6] = &d_orig_matrix;
+	bwd_x_op_args[7] = &d_upstream_dX;
+	bwd_x_op_args[8] = &d_dX;
+
+
+	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_bwd_x_op, compute_stream_id_a);
 	if (ret){
-		fprintf(stderr, "Failed to submit rms bwd x op...\n");
+		fprintf(stderr, "Error: failed to submit op...\n");
 		return -1;
 	}
 
@@ -331,9 +369,26 @@ int main(int argc, char * argv[]){
 
 	printf("Doing BWD W op...\n");
 
-	ret = submit_rms_norm_bwd_w(&cuda_dataflow_handle, compute_stream_id_a, 
-									fwd_dt, bwd_dt, iM, iN, eps, 
-									d_rms_vals, d_orig_matrix, d_upstream_dX, d_dW);
+	Op rms_norm_bwd_w_op;
+
+	set_native_rms_norm_bwd_w_skeleton(&rms_norm_bwd_w_op.op_skeleton, fwd_dt, bwd_dt);
+
+	void ** bwd_w_op_args = rms_norm_bwd_w_op.op_args;
+
+	bwd_w_op_args[0] = &iM;
+	bwd_w_op_args[1] = &iN;
+	bwd_w_op_args[2] = &eps;
+	bwd_w_op_args[3] = &d_rms_vals;
+	bwd_w_op_args[4] = &d_orig_matrix;
+	bwd_w_op_args[5] = &d_upstream_dX;
+	bwd_w_op_args[6] = &d_dW;
+
+
+	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &rms_norm_bwd_w_op, compute_stream_id_a);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit op...\n");
+		return -1;
+	}
 
 	printf("Submitting dependency for outbound BWD W transfer...\n");
 
