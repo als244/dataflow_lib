@@ -5,10 +5,11 @@ int submit_swiglu(Dataflow_Handle * handle, int stream_id,
 						int num_rows, int num_cols, 
 						void * x_w1, void * x_w3, void * out) {
 
+	int ret;
 
 	Op swiglu_op;
 
-	set_native_swiglu_skeleton(swiglu_op.op_skeleton, fwd_dt);
+	set_native_swiglu_skeleton(&swiglu_op.op_skeleton, fwd_dt);
 
 	void ** op_args = swiglu_op.op_args;
 
@@ -19,7 +20,7 @@ int submit_swiglu(Dataflow_Handle * handle, int stream_id,
 	op_args[4] = &out;
 
 
-	ret = handle.submit_op(&handle, &swiglu_op, stream_id);
+	ret = (handle -> submit_op)(handle, &swiglu_op, stream_id);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit swiglu op...\n");
 		return -1;
@@ -34,7 +35,7 @@ int submit_swiglu_bwd_x(Dataflow_Handle * handle, int stream_id,
 						void * x_w1, void * x_w3, 
 						void * upstream_dX, void * dX_w1, void * dX_w3) {
 
-
+	int ret;
 	Op swiglu_bwd_x_op;
 
 	set_native_swiglu_bwd_x_skeleton(&swiglu_bwd_x_op.op_skeleton, fwd_dt, bwd_dt);
@@ -50,7 +51,7 @@ int submit_swiglu_bwd_x(Dataflow_Handle * handle, int stream_id,
 	op_args[6] = &dX_w3;
 
 
-	ret = handle.submit_op(&handle, &swiglu_bwd_x_op, stream_id);
+	ret = (handle -> submit_op)(handle, &swiglu_bwd_x_op, stream_id);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit swiglu bwd x op...\n");
 		return -1;

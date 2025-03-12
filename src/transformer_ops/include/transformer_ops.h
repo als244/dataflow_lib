@@ -2,6 +2,9 @@
 #define TRANSFORMER_OPS_H
 
 #include "dataflow.h"
+#include "ops.h"
+#include "dataflow_handle.h"
+#include "set_native_op_skeletons.h"
 
 // From norm_ops.c
 
