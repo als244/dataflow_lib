@@ -27,6 +27,7 @@ typedef struct func_meta {
 	char native_func_config_lib_set_launch_symbol_name[FUNC_NAME_MAX_LEN];
 	// If not native then external should be set
 	char external_lib_path[PATH_MAX];
+	char external_lib_func_init_symbol[FUNC_NAME_MAX_LEN];
 	char external_lib_func_symbol[FUNC_NAME_MAX_LEN];
 	// the function arguments of external lib should match
 	Op_Skeleton op_skeleton;
@@ -117,6 +118,20 @@ struct dataflow_handle {
 	// TODO: Network
 	
 };
+
+
+// this is the function signature of optional init function
+// that is called during handle initialization 
+// The op_table_value argument can be casted to specific backend function structure (e.g. Cuda_Function)
+// which is stored within the op table
+// It should be able to hold an "extra" field that can be populated by init function and later retrieved
+// during actual call to the external function
+typedef int (*External_Lib_Func_Init)(Dataflow_Handle * dataflow_handle, void * op_table_value);
+
+// this is the function signature of all external functions
+// the extra argument allows for passing of library handles and other attributes
+// the extra argument can be populated from the initialization function and saved within
+typedef int (*External_Lib_Func)(Dataflow_Handle * dataflow_handle, int stream_id, Op * op, void * op_extra);
 
 
 int init_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType compute_type, int device_id, int ctx_id, unsigned int ctx_flags, int num_streams, int * opt_stream_prios, char ** opt_stream_names, 

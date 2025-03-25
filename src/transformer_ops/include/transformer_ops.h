@@ -5,6 +5,17 @@
 #include "ops.h"
 #include "dataflow_handle.h"
 #include "set_native_op_skeletons.h"
+#include "set_external_op_skeletons.h"
+
+// From matmul.c
+
+int submit_matmul(Dataflow_Handle * handle, int stream_id, 
+					DataflowDatatype a_dt, DataflowDatatype b_dt, DataflowDatatype c_dt, DataflowDatatype d_dt,
+					DataflowDatatype compute_dt,
+					int M, int K, int N,
+					float alpha, float beta,
+					uint64_t workspaceBytes, void * workspace,
+					void * A, void * B, void * C, void * D);
 
 // From norm_ops.c
 

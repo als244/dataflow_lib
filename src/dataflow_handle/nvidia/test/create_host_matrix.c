@@ -103,6 +103,108 @@ void * create_rand_host_matrix(uint64_t M, uint64_t N, float mean, float std, Da
 	return dest_matrix;
 }
 
+void * create_identity_host_matrix(uint64_t N, DataflowDatatype dt, void * opt_dest) {
+
+	
+
+	uint64_t num_els = N * N;
+
+	float * identity_float_matrix = malloc(num_els * sizeof(float));
+
+	if (!identity_float_matrix){
+		fprintf(stderr, "Error: could not allocate temp identity float matrix\n\tM: %lu\n\tN: %lu\n\n", N, N);
+		return NULL;
+	}
+
+	for (uint64_t i = 0; i < N; i++){
+		identity_float_matrix[i + i * N] = 1.0f;
+	}
+
+	size_t el_size = dataflow_sizeof_element(dt);
+
+	void * dest_matrix;
+
+	if (opt_dest){
+		dest_matrix = opt_dest;
+	}
+	else{
+		dest_matrix = malloc(num_els * el_size);
+		if (!dest_matrix){
+			fprintf(stderr, "Error: failed to alloc dest host matrix\n\tM: %lu\n\tN: %lu\n\n", N, N);
+			free(identity_float_matrix);
+			return NULL;
+		}
+	}
+
+	int num_threads = 8;
+
+	int ret = dataflow_convert_datatype(dest_matrix, identity_float_matrix, dt, DATAFLOW_FP32, num_els, num_threads);
+	
+	free(identity_float_matrix);
+	
+	if (ret){
+		fprintf(stderr, "Error: failure in conversion from identity float matrix to %s matrix during create identity...\n", dataflow_datatype_as_string(dt));
+		if (!opt_dest){
+			free(dest_matrix);
+		}
+		return NULL;
+	}
+
+	return dest_matrix;
+}
+
+void * create_index_identity_host_matrix(uint64_t M, uint64_t N, DataflowDatatype dt, void * opt_dest) {
+
+	
+
+	uint64_t num_els = M * N;
+
+	float * index_identity_float_matrix = malloc(num_els * sizeof(float));
+
+	if (!index_identity_float_matrix){
+		fprintf(stderr, "Error: could not allocate temp index identity float matrix\n\tM: %lu\n\tN: %lu\n\n", M, N);
+		return NULL;
+	}
+
+	for (uint64_t i = 0; i < num_els; i++){
+		index_identity_float_matrix[i] = (float) i;
+	}
+
+	size_t el_size = dataflow_sizeof_element(dt);
+
+	void * dest_matrix;
+
+	if (opt_dest){
+		dest_matrix = opt_dest;
+	}
+	else{
+		dest_matrix = malloc(num_els * el_size);
+		if (!dest_matrix){
+			fprintf(stderr, "Error: failed to alloc dest host matrix\n\tM: %lu\n\tN: %lu\n\n", M, N);
+			free(index_identity_float_matrix);
+			return NULL;
+		}
+	}
+
+	int num_threads = 8;
+
+	int ret = dataflow_convert_datatype(dest_matrix, index_identity_float_matrix, dt, DATAFLOW_FP32, num_els, num_threads);
+	
+	free(index_identity_float_matrix);
+	
+	if (ret){
+		fprintf(stderr, "Error: failure in conversion from index identity float matrix to %s matrix during create index identity...\n", dataflow_datatype_as_string(dt));
+		if (!opt_dest){
+			free(dest_matrix);
+		}
+		return NULL;
+	}
+
+	return dest_matrix;
+}
+
+
+
 void * load_host_matrix_from_file(char * filepath, uint64_t M, uint64_t N, DataflowDatatype orig_dt, DataflowDatatype new_dt, void * opt_dest) {
 
 	FILE * fp = fopen(filepath, "rb");

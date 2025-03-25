@@ -3,7 +3,7 @@
 
 #include "dataflow.h"
 
-#define MAX_OP_ARGS 16
+#define MAX_OP_ARGS 32
 
 #define MAX_OP_NICKNAME_SIZE 255
 

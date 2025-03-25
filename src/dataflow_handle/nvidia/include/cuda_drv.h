@@ -2,7 +2,11 @@
 #define CUDA_DRV_H
 
 #include "dataflow_common.h"
+
+#ifndef CUDA_H
+#define CUDA_H
 #include <cuda.h>
+#endif
 
 int cu_initialize_drv();
 

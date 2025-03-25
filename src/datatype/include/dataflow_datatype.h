@@ -19,6 +19,7 @@ typedef enum {
 	DATAFLOW_UINT8,
 	DATAFLOW_LONG,
 	DATAFLOW_INT,
+	DATAFLOW_BOOL,
 	DATAFLOW_FP64_SCALAR,
 	DATAFLOW_FP32_SCALAR,
 	DATAFLOW_FP16_SCALAR,
@@ -31,6 +32,7 @@ typedef enum {
 	DATAFLOW_UINT8_SCALAR,
 	DATAFLOW_LONG_SCALAR,
 	DATAFLOW_INT_SCALAR,
+	DATAFLOW_BOOL_SCALAR
 } DataflowDatatype;
 
 // E.g. returns the datatype size corresponding to the elements within the array

@@ -5,8 +5,6 @@
 #include "dataflow_handle.h"
 #include "cuda_drv.h"
 
-#include <cuda.h>
-
 #define CUDA_DEFAULT_STREAM_PRIO 0
 
 typedef struct cuda_device_info {
@@ -38,15 +36,20 @@ typedef struct cuda_launch_config {
 typedef struct cuda_function Cuda_Function;
 
 struct cuda_function {
+	// Native Attributes
 	Cuda_Function_Config function_config;
 	// if native the will call native launch
 	// otherwise will call the function pointer loaded from external
 	bool is_native;
 	CUfunction function_handle;
 	int (*set_launch_config)(Cuda_Launch_Config * cuda_launch_config, Dataflow_Handle * dataflow_handle, Cuda_Function * cuda_function, Op * op);
+	
+	// External Attributes
 	// external function is defined as a wrapper around third party function...
-	int (*cuda_external_func)(Dataflow_Handle * dataflow_handle, int stream_id, Op * op);
-	// these parts are vendor-agnostic
+	int (*cuda_external_func)(Dataflow_Handle * dataflow_handle, int stream_id, Op * op, void * op_extra);
+	void * op_extra;
+
+	// Op Skeleton should be implementation and vendor-agnostic and follow standard API
 	Op_Skeleton op_skeleton;
 };
 
