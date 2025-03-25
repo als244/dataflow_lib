@@ -9,6 +9,11 @@
 
 // From matmul.c
 
+// If A, B, C, D are all stored in Row-Major:
+// Computes D = alpha * AB^T + beta * C
+
+// If B is stored in Col-Major:
+// Computes D = alpha * AB + beta * C
 int submit_matmul(Dataflow_Handle * handle, int stream_id, 
 					DataflowDatatype a_dt, DataflowDatatype b_dt, DataflowDatatype c_dt, DataflowDatatype d_dt,
 					DataflowDatatype compute_dt,
