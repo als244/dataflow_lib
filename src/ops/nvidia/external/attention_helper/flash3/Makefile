@@ -58,7 +58,8 @@ FLASH_API_OBJ = build/flash_api.o
 WRAPPER_SHARED_LIB = build/libflash3.so
 
 
-all: ${WRAPPER_SHARED_LIB}
+## only need WRAPPER_SHARED_LIB as root target, but setting others to ensure parallel make (i.e. make -j <N_PROCS>) works correctly
+all: ${WRAPPER_SHARED_LIB} ${FLASH_API_OBJ} ${CU_COMBINE_OBJ} ${CU_KERNEL_OBJS}
 
 ${WRAPPER_SHARED_LIB}: ${FLASH_API_OBJ} ${CU_COMBINE_OBJ} ${CU_KERNEL_OBJS}
 	${CXX} ${CXX_FLAGS} -shared ${ALL_INCLUDES} $^ -o $@ ${ALL_LIBS}
