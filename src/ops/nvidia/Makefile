@@ -20,7 +20,8 @@ FINGERPRINT_HEADER = ../../fingerprint/include
 OPS_HEADER = ../include
 CUDA_OPS_HEADER = include
 
-GEN_LIB_NAME = build/cuda_kernels
+GEN_PTX = build/cuda_kernels.ptx
+GEN_CUBIN = lib/cuda_kernels.cubin
 
 CUDA_KERNELS_SRC = cuda_kernels.cu
 
@@ -35,10 +36,10 @@ ${NATIVE_FUNC_LIB}: ${NATIVE_FUNC_SRC_FILES} ${NATIVE_FUNC_LIB_OBJ_DEPENDS}
 	gcc -g -fPIC -shared -I${CUDA_OPS_HEADER} -I${CUDA_DATAFLOW_HANDLE_HEADER} -I${OPS_HEADER} -I${DATAFLOW_HANDLE_HEADER} -I${TABLE_HEADER} -I${FINGERPRINT_HEADER} -I${DATATYPE_HEADER} -I${PROJ_COMMON_HEADER} -I${CUDA_INCLUDE_DIR} $^ -o $@ -L${CUDA_LIB_DIR} ${CUDA_LIB_DEPENDS}
 
 cuda_kernels_ptx: ${CUDA_KERNELS_SRC} 
-	nvcc ${NVCC_FLAGS} -I${CUDA_OPS_HEADER} -I${PROJ_COMMON_HEADER} -o ${GEN_LIB_NAME}.ptx -ptx $^ -arch=compute_${CUDA_ARCH_NUM} -code=sm_${CUDA_ARCH_NUM}
+	nvcc ${NVCC_FLAGS} -I${CUDA_OPS_HEADER} -I${PROJ_COMMON_HEADER} -o ${GEN_PTX} -ptx $^ -arch=compute_${CUDA_ARCH_NUM} -code=sm_${CUDA_ARCH_NUM}
 
 cuda_kernels_cubin: ${CUDA_KERNELS_SRC} 
-	nvcc ${NVCC_FLAGS} -I${CUDA_OPS_HEADER} -I${PROJ_COMMON_HEADER} -o ${GEN_LIB_NAME}.cubin -cubin $^ -arch=compute_${CUDA_ARCH_NUM} -code=sm_${CUDA_ARCH_NUM}
+	nvcc ${NVCC_FLAGS} -I${CUDA_OPS_HEADER} -I${PROJ_COMMON_HEADER} -o ${GEN_CUBIN} -cubin $^ -arch=compute_${CUDA_ARCH_NUM} -code=sm_${CUDA_ARCH_NUM}
 
 clean:
 	rm -f build/cuda_all_functions_meta.dat ${NATIVE_FUNC_LIB} ${SAVE_FUNC_EXEC} ${GEN_LIB_NAME}.ptx ${GEN_LIB_NAME}.cubin 

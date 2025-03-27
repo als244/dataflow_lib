@@ -314,7 +314,7 @@ int main(int argc, char * argv[]){
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
 	set_external_matmul_skeleton(cur_op_skeleton);
 
-	char * cublas_matmul_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/matmul_helper/build/libmatmulwrapper.so";
+	char * cublas_matmul_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so";
 	char * cublas_matmul_func_init_symbol = "cublas_matmul_init";
 	char * cublas_matmul_func_symbol = "cublas_matmul";
 
@@ -326,7 +326,7 @@ int main(int argc, char * argv[]){
 	/*
 	// ATTENTION FWD
 
-	char * attention_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/attention_helper/build/libattentionwrapper.so";
+	char * attention_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/attention_helper/lib/libflash3.so";
 
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
@@ -359,7 +359,7 @@ int main(int argc, char * argv[]){
 
 	// NOW SAVE ALL FUNC META ARRAY....!
 
-	char * all_func_meta_filepath = "../ops/nvidia/build/cuda_all_functions_meta.dat";
+	char * all_func_meta_filepath = "../ops/nvidia/lib/cuda_all_functions_meta.dat";
 
 	FILE * fp = fopen(all_func_meta_filepath, "wb");
 	if (!fp){

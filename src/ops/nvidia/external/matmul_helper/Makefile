@@ -11,7 +11,7 @@ FINGERPRINT_HEADER = ../../../../fingerprint/include
 OPS_HEADER = ../../../include
 MATMUL_HELPER_HEADER = include
 
-MATMUL_HELPER_BUILD_DIR = ./build
+MATMUL_HELPER_BUILD_DIR = ./lib
 MATMUL_HELPER_LIB = ${MATMUL_HELPER_BUILD_DIR}/libmatmulwrapper.so
 
 CUDA_INCLUDE_DIR = /usr/local/cuda/include
