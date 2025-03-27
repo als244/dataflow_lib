@@ -11,6 +11,19 @@
 #include "cuda_check.h"
 
 
+#define ROUND_UP_TO_128(x) (((x) + 127) & ~127)
+
+
+inline int round_up_headdim(int head_size) {
+    if (head_size <= 64) { return 64; }
+    if (head_size <= 96) { return 96; }
+    if (head_size <= 128) { return 128; }
+    if (head_size <= 192) { return 192; }
+    if (head_size <= 256) { return 256; }
+    return 512;
+}
+
+
 inline bool get_pack_gqa(Flash_fwd_params const& params) {
     // Always enable PackGQA for Sm8x or PagedKVNonTMA or Split to reduce compilation and binary size.
     // Has little effect on speed.
@@ -172,115 +185,32 @@ void run_mha_bwd(Flash_bwd_params &params, cudaStream_t stream) {
 
 extern "C" {
     
-    /*
-    int flash2_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
-                                int num_q_heads, int num_kv_heads, int head_dim, 
-                                void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
-                                int arch, int num_sm) {
+    // if TYPE FP8, output must be BF16
+    
+    // To compute required size of attn_workspace:
 
-        int model_dim = num_q_heads * head_dim;
-        int kv_dim = num_kv_heads * head_dim;
+    // attn_workspace_size = 0
 
-        Flash_fwd_params params;
-        memset(&params, 0, sizeof(Flash_fwd_params));
+    // Occum and LSE accum:
+    // If num_splits > 1:
+    //      attn_workspace_size += num_splits * sizeof(float) * num_q_heads * total_q * (1 + head_dim)
+    
+    // Tile count sem: 
+    // If arch >= 90 || num_splits > 1:
+    //      attn_workspace_size += sizeof(int)
 
-        DataflowDatatype flash_dtype = (DataflowDatatype) flash_dtype_as_int;
+    // Dynamic split ptr for each seq:
+    // If num_seqs <= 992:
+    //      attn_workspace_size += num_seqs * sizeof(int)
 
-        if (flash_dtype == DATAFLOW_FP32){
-            params.is_fp32 = true;
-        }
-        if (flash_dtype == DATAFLOW_BF16){
-            params.is_bf16 = true;
-        }
-        if (flash_dtype == DATAFLOW_FP8E4M3){
-            params.is_e4m3 = true;
-        }
-
-        params.total_q = total_tokens;
-        params.total_k = total_tokens;
-        //params.sink_token_length = 0.0;
-
-
-        params.q_ptr = x_q;
-        params.k_ptr = x_k;
-        params.v_ptr = x_v;
-        params.o_ptr = x_attn_out;
-
-        params.q_row_stride = model_dim;
-        params.k_row_stride = kv_dim;
-        params.v_row_stride = kv_dim;
-        params.o_row_stride = model_dim;
-
-        params.q_head_stride = head_dim;
-        params.k_head_stride = head_dim;
-        params.v_head_stride = head_dim;
-        params.o_head_stride = head_dim;
-
-        params.v_dim_stride = 1;
-
-        params.cu_seqlens_q = cu_seqlens;
-        params.cu_seqlens_k = cu_seqlens;
-        
-        params.cu_seqlens_knew = NULL;
-        params.leftpad_k = NULL;
-        params.seqused_q = NULL;
-        params.seqused_k = NULL;
-
-        params.knew_ptr = NULL;
-        params.vnew_ptr = NULL;
-
-        params.qv_ptr = NULL;
-
-        params.softmax_lse_ptr = softmax_lse;
-
-        params.b = num_seqs;
-        params.b_k = num_seqs;
-        params.h = num_q_heads;
-        params.h_k = num_kv_heads;
-        params.d = head_dim;
-        params.d_rounded = head_dim;
-        params.dv = head_dim;
-        params.dv_rounded = head_dim;
-
-
-        params.seqlen_q = max_seqlen;
-        params.seqlen_k = max_seqlen;
-        
-        params.seqlen_q_rounded = max_seqlen;
-        params.seqlen_k_rounded = max_seqlen;
-
-        params.scale_softmax = 1.0 / sqrtf((float) model_dim);
-        params.softcap = 0.0;
-
-        params.p_dropout = 1.0;
-
-        params.p_dropout_in_uint8_t = 255;
-
-        params.rp_dropout = 1.0;
-
-        params.is_causal = true;
-        params.is_local = false;
-        params.window_size_left = -1;
-        params.window_size_right = -1;
-
-        params.is_rotary_interleaved = false;
-        params.rotary_dim = 0;
-
-        params.num_splits = 1;
-        params.pack_gqa = false;
-
-        params.arch = arch;
-        params.num_sm = num_sm;
-
-        run_mha_fwd(params, stream);
-
-        return 0;
-    }
-    */
-
-    int flash3_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
+    int flash3_fwd_wrapper(CUstream stream, 
+                            int num_seqs, int total_q, int total_k, 
+                            int * cum_q_seqlens, int max_seqlen_q,
+                            int * k_seqlens, int max_seqlen_k,
+                            int flash_dtype_as_int, 
                             int num_q_heads, int num_kv_heads, int head_dim, 
-                            void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
+                            void * x_q, void * x_k, void * x_v, 
+                            void * x_attn_out, void * softmax_lse, 
                             int arch, int num_sm, 
                             void * attn_workspace) {
 
@@ -288,24 +218,6 @@ extern "C" {
         int kv_dim = num_kv_heads * head_dim;
 
         Flash_fwd_params params;
-        
-        params.q_descale_ptr = NULL;
-        params.k_descale_ptr = NULL;
-        params.v_descale_ptr = NULL;
-    
-        params.q_descale_batch_stride = 0;
-        params.q_descale_head_stride = 0;
-        params.k_descale_batch_stride = 0;
-                params.k_descale_head_stride = 0;
-        params.v_descale_batch_stride = 0;
-                params.v_descale_head_stride = 0;
-        
-        params.total_knew = 0;
-
-        params.q_batch_stride = 0;
-        params.k_batch_stride = 0;
-        params.v_batch_stride = 0;
-        params.o_batch_stride = 0;
         
 
         params.is_fp32 = false;
@@ -330,9 +242,18 @@ extern "C" {
             }
         }
 
-        params.total_q = total_tokens;
-        params.total_k = total_tokens;
+        params.total_q = total_q;
+        params.total_k = total_k;
+        params.total_knew = 0;
 
+        params.seqlen_q = max_seqlen_q;
+        params.seqlen_q_rounded = ROUND_UP_TO_128(max_seqlen_q); 
+
+        // Think it is ok to set this 0 and not take in max_seqlen_k...
+        params.seqlen_k = max_seqlen_k;
+        params.seqlen_k_rounded = ROUND_UP_TO_128(max_seqlen_k);
+
+        params.seqlen_knew = 0;
 
         params.q_ptr = x_q;
         params.k_ptr = x_k;
@@ -351,13 +272,14 @@ extern "C" {
 
         params.v_dim_stride = 1;
 
-        params.cu_seqlens_q = cu_seqlens;
-        params.cu_seqlens_k = cu_seqlens;
-        
+        params.cu_seqlens_q = cum_q_seqlens;
+        params.cu_seqlens_k = NULL;
         params.cu_seqlens_knew = NULL;
         params.leftpad_k = NULL;
+
+
         params.seqused_q = NULL;
-        params.seqused_k = NULL;
+        params.seqused_k = k_seqlens;
 
         params.knew_ptr = NULL;
         params.vnew_ptr = NULL;
@@ -367,6 +289,23 @@ extern "C" {
         params.knew_head_stride = 0;
         params.vnew_row_stride = 0;
         params.vnew_head_stride = 0;
+        params.vnew_batch_stride = 0;
+
+        params.q_descale_ptr = NULL;
+        params.k_descale_ptr = NULL;
+        params.v_descale_ptr = NULL;
+    
+        params.q_descale_batch_stride = 0;
+        params.q_descale_head_stride = 0;
+        params.k_descale_batch_stride = 0;
+        params.k_descale_head_stride = 0;
+        params.v_descale_batch_stride = 0;
+        params.v_descale_head_stride = 0;
+
+        params.q_batch_stride = 0;
+        params.k_batch_stride = 0;
+        params.v_batch_stride = 0;
+        params.o_batch_stride = 0;
 
             
 
@@ -375,40 +314,40 @@ extern "C" {
         params.qv_row_stride = 0;
         params.qv_head_stride = 0;
 
-        params.kv_batch_idx = 0;
+        params.kv_batch_idx = NULL;
         params.page_table = NULL;
         params.page_table_batch_stride = 0;
         params.page_size = 0;
         params.num_pages = 0;
+        params.pagedkv_tma = false;
 
-        params.rng_state = NULL;
+        // Need to determine what to do here
+        // (if dropout is non-zero...)
+        params.rng_state = NULL;    
 
+        // Will over-write if split
         params.oaccum_batch_stride = 0;
         params.oaccum_split_stride = 0;
         params.oaccum_row_stride = 0;
         params.oaccum_head_stride = 0;
 
         params.lseaccum_batch_stride = 0;
-                params.lseaccum_split_stride = 0;
-                params.lseaccum_head_stride = 0;
+        params.lseaccum_split_stride = 0;
+        params.lseaccum_head_stride = 0;
 
 
         params.softmax_lse_ptr = softmax_lse;
 
+        int head_dim_rounded = round_up_headdim(head_dim);
+        
         params.b = num_seqs;
         params.b_k = num_seqs;
         params.h = num_q_heads;
         params.h_k = num_kv_heads;
         params.d = head_dim;
-        params.d_rounded = head_dim;
+        params.d_rounded = head_dim_rounded;
         params.dv = head_dim;
-        params.dv_rounded = head_dim;
-
-        params.seqlen_q = max_seqlen;
-        params.seqlen_k = max_seqlen;
-        
-        params.seqlen_q_rounded = max_seqlen;
-        params.seqlen_k_rounded = max_seqlen;
+        params.dv_rounded = head_dim_rounded;
 
         params.scale_softmax = 1.0 / sqrtf((float) model_dim);
         params.softcap = 0.0f;
@@ -424,29 +363,31 @@ extern "C" {
         params.window_size_left = -1;
         params.window_size_right = -1;
         
+        params.rotary_dim = 0;
         params.rotary_cos_ptr = NULL;
         params.rotary_sin_ptr = NULL;
+        params.seqlens_rotary = NULL;
         params.is_rotary_interleaved = false;
-        params.rotary_dim = 0;
+        
 
         params.arch = arch;
         params.num_sm = num_sm;
 
-        // Need to figure out what this does...
-        //int is_dynamic_split = 0;
-        //params.num_splits_dynamic_ptr = &is_dynamic_split;
-        params.num_splits_dynamic_ptr = NULL;
+
+        void * cur_attn_workspace = attn_workspace;
+
+        // FOLLOWING WHAT WAS DONE IN ORGINAL SOURCE...
+
+        params.num_splits_dynamic_ptr = (int *) 1;
 
         int num_splits = get_num_splits(params);
         params.num_splits = num_splits;
-
-        float * cur_attn_workspace = (float *) attn_workspace;
         
         if (params.num_splits > 1){
             
             // (num_splits, num_heads, total_q, headdim)
             params.oaccum_ptr = (float *) cur_attn_workspace;
-            cur_attn_workspace += (num_splits * num_q_heads * total_tokens * head_dim);
+            cur_attn_workspace += (num_splits * num_q_heads * total_q * head_dim * sizeof(float));
             
             params.oaccum_split_stride = params.num_splits;
             params.oaccum_row_stride = model_dim;
@@ -454,17 +395,65 @@ extern "C" {
 
             // (num_splits, num_heads, total_q)
             params.softmax_lseaccum_ptr = (float *) cur_attn_workspace;
-            cur_attn_workspace += (num_splits * num_q_heads * total_tokens);
+            cur_attn_workspace += (num_splits * num_q_heads * total_q * sizeof(float));
             params.lseaccum_split_stride = params.num_splits;
             params.lseaccum_head_stride = head_dim;
         }
 
+        
         params.pack_gqa = get_pack_gqa(params);
 
-        params.tile_count_semaphore = NULL;
+        int to_use_dynamic_split = 0;
 
-        if (arch >= 90){
-            params.tile_count_semaphore = (int *) cur_attn_workspace;
+        // Harcoded number from original source
+        if (params.b <= 992){
+            to_use_dynamic_split = 1;
+        } 
+
+        int needs_sem = 0;
+        if ((params.arch >= 90) || (params.num_splits > 1)){
+            needs_sem = 1;
+        }
+
+
+        params.tile_count_semaphore = NULL;
+        // reset back to null now
+        params.num_splits_dynamic_ptr = NULL;
+        
+        if ((needs_sem) || (to_use_dynamic_split)) {
+            if (needs_sem){
+                if (!to_use_dynamic_split){
+                    // ensure tile count semaphore set to zero
+                    // should happen before call to this function
+                }
+                // only 1 int
+                params.tile_count_semaphore = (int *) cur_attn_workspace;
+                cur_attn_workspace += sizeof(int);
+            }
+
+            if (to_use_dynamic_split){
+                // need params.b integers here or params.b - 1..?
+                // is this +1 a bug if the sched doesn't need sem...?
+                // they initialzed buffer as needs_sem + use_dynamic * params.b
+                // assuming bug...
+                // params.num_splits_dynamic_ptr = ((int *) cur_attn_workspace + 1);
+                params.num_splits_dynamic_ptr = (int *) cur_attn_workspace;
+
+            }
+        }
+
+        // Not sure what to do about this...
+        params.skip_scheduler_metadata_computation = false;
+
+        // copying from Original source...
+        if (params.num_splits_dynamic_ptr){
+
+            auto kBlockMN_kernel_args_sm90 = tile_size_fwd_sm90(params.d_rounded, params.dv_rounded, params.is_causal, params.is_local, params.is_e4m3 ? 1 : 2 /*element_size*/, false /*v_colmajor*/, params.page_table && !params.pagedkv_tma, params.softcap > 0.f);
+            auto kBlockMN_kernel_args_sm8x = tile_size_fwd_sm8x(params.arch == 86 || params.arch == 89, params.d_rounded, params.dv_rounded, params.is_causal, params.is_local, params.is_e4m3 ? 1 : 2 /*element_size*/, params.page_table, params.num_splits > 1, params.softcap > 0.f, params.knew_ptr);
+            int const kBlockM = params.arch >= 90 ? std::get<0>(kBlockMN_kernel_args_sm90) : std::get<0>(kBlockMN_kernel_args_sm8x);
+            int const kBlockN = params.arch >= 90 ? std::get<1>(kBlockMN_kernel_args_sm90) : std::get<1>(kBlockMN_kernel_args_sm8x);
+            prepare_varlen_num_blocks(params, stream, params.pack_gqa, kBlockM, kBlockN, false /*enable_pdl*/);
+            CHECK_CUDA_KERNEL_LAUNCH();
         }
 
         // Also calls combine at end of function if 
@@ -472,5 +461,21 @@ extern "C" {
         run_mha_fwd(params, stream);
 
         return 0;
+    }
+
+    int flash3_bwd_wrapper(CUstream stream, 
+                            int num_seqs, int total_q, int total_k, 
+                            int * cum_q_seqlens, int max_seqlen_q,
+                            int * k_seqlens, int max_seqlen_k,
+                            int flash_dtype_as_int, 
+                            int num_q_heads, int num_kv_heads, int head_dim, 
+                            void * x_q, void * x_k, void * x_v, 
+                            void * x_attn_out, void * softmax_lse, 
+                            int arch, int num_sm, 
+                            void * attn_workspace) {
+        
+        fprintf(stderr, "Unimplemented Error: flash3_bwd_wrapper\n");
+        return -1;
+
     }
 }

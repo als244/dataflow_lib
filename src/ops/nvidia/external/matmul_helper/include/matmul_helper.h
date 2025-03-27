@@ -5,7 +5,7 @@
 #include "dataflow_datatype.h"
 #include "solo_conversion.h"
 #include "dataflow_handle.h"
-#include "cuda_dataflow_handle.h"
+#include "cuda_dataflow_handle.h" // for Cuda_Function
 #include "ops.h"
 
 #ifndef CUDA_H

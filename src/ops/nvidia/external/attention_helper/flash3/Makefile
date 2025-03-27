@@ -1,5 +1,5 @@
 ## C++ Compiler
-CXX = g++ -std=c++17
+CXX = g++ -std=c++17 -g
 CXX_FLAGS = -fPIC -O3 -Wall
 
 ## NVCC Compilation

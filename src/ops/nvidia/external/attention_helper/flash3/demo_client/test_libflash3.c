@@ -160,21 +160,38 @@ int get_dev_info(int device_id, int * arch, int * num_sms){
 }
 
 
-int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int num_q_heads, int num_kv_heads, int head_dim, void ** cu_seqlens, void ** x_q, void  ** x_k, void ** x_v, void ** x_attn_out, void ** softmax_lse, void ** attn_workspace){
+int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes, 
+				int num_q_heads, int num_kv_heads, int head_dim, 
+				void ** cu_seqlens_q, void ** seqlens_k, 
+				void ** x_q, void  ** x_k, void ** x_v, 
+				void ** x_attn_out, void ** softmax_lse, 
+				void ** attn_workspace){
 
 	CUresult result;
 	const char * err;
 
 	int seqlen_size = (num_seqs + 1) * sizeof(int);
 
-	result = cuMemAlloc((CUdeviceptr *) cu_seqlens, seqlen_size);
+	result = cuMemAlloc((CUdeviceptr *) cu_seqlens_q, (num_seqs + 1) * sizeof(int));
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
-    	fprintf(stderr, "Error: Could not allocate cu_seqlens on device: %s\n", err);
+    	fprintf(stderr, "Error: Could not allocate cu_seqlens_q on device: %s\n", err);
     	return -1;
 	}
 
-	int q_size = num_q_heads * head_dim * total_tokens * x_dt_bytes;
+	result = cuMemAlloc((CUdeviceptr *) seqlens_k, (num_seqs * sizeof(int)));
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+    	fprintf(stderr, "Error: Could not allocate seqlens_k on device: %s\n", err);
+    	return -1;
+	}
+
+	int q_size = total_q * num_q_heads * head_dim * x_dt_bytes;
+	int out_size = q_size;
+	// if FP8, then out must be BF16...
+	if (x_dt_bytes == 1){
+		out_size *= 2;
+	}
 
 	result = cuMemAlloc((CUdeviceptr *) x_q, q_size);
 	if (result != CUDA_SUCCESS){
@@ -184,16 +201,16 @@ int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int nu
 	}
 
 
-	int kv_size = num_kv_heads * head_dim * total_tokens * x_dt_bytes;
+	int kv_size = total_k * num_kv_heads * head_dim * x_dt_bytes;
 
-	result = cuMemAlloc((CUdeviceptr *) x_k, q_size);
+	result = cuMemAlloc((CUdeviceptr *) x_k, kv_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
     	fprintf(stderr, "Error: Could not allocate x_k on device: %s\n", err);
     	return -1;
 	}
 
-	result = cuMemAlloc((CUdeviceptr *) x_v, q_size);
+	result = cuMemAlloc((CUdeviceptr *) x_v, kv_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
     	fprintf(stderr, "Error: Could not allocate x_v on device: %s\n", err);
@@ -201,7 +218,7 @@ int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int nu
 	}
 
 
-	result = cuMemAlloc((CUdeviceptr *) x_attn_out, q_size);
+	result = cuMemAlloc((CUdeviceptr *) x_attn_out, out_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
     	fprintf(stderr, "Error: Could not allocate x_attn_out on device: %s\n", err);
@@ -210,7 +227,7 @@ int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int nu
 
 
 
-	int softmax_lse_size = num_q_heads * total_tokens * sizeof(float);
+	int softmax_lse_size = num_q_heads * total_q * sizeof(float);
 
 	
 	result = cuMemAlloc((CUdeviceptr *) softmax_lse, softmax_lse_size);
@@ -221,7 +238,37 @@ int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int nu
 	}
 
 
-	int attn_workspace_size = 1 * sizeof(int);
+	// To compute required size of attn_workspace:
+
+	// attn_workspace_size = 0
+
+	// Occum and LSE accum:
+	// If num_splits > 1:
+	//      attn_workspace_size += num_splits * sizeof(float) * num_q_heads * total_q * (1 + head_dim)
+
+	// Tile count sem: 
+	// If arch >= 90 || num_splits > 1:
+	//      attn_workspace_size += sizeof(int)
+
+	// Dynamic split ptr for each seq:
+	// If num_seqs <= 992:
+	//      attn_workspace_size += num_seqs * sizeof(int)
+
+	// just get enough...
+
+	int max_num_splits = 256;
+
+
+	int attn_workspace_size = 0;
+
+	// cover oaccum and lse accum
+	attn_workspace_size += max_num_splits * sizeof(float) * num_q_heads * total_q * (1 + head_dim);
+	
+	// cover potential tile count sem
+	attn_workspace_size += sizeof(int);
+
+	// covert potential dynamic split
+	attn_workspace_size += num_seqs * sizeof(int);
 
 	result = cuMemAlloc((CUdeviceptr *) attn_workspace, attn_workspace_size);
 	if (result != CUDA_SUCCESS){
@@ -230,9 +277,9 @@ int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int nu
         	return -1;
 	}
 
-	int zero_sem = 0;
-
-	result = cuMemcpyHtoD((CUdeviceptr) *attn_workspace, &zero_sem, sizeof(int));
+	// Set to 0
+	int * zero_sem = calloc(attn_workspace_size, 1);
+	result = cuMemcpyHtoD((CUdeviceptr) *attn_workspace, zero_sem, attn_workspace_size);
         if (result != CUDA_SUCCESS){
                 cuGetErrorString(result, &err);
                 fprintf(stderr, "Error: Could not set workspace to zero before attn: %s\n", err);
@@ -281,32 +328,35 @@ int load_from_file_to_dev(char * filepath, size_t size_bytes, void * dev_ptr){
 }
 
 
-int load_and_copy_sample_inputs(char * data_dir, int num_seqs, int total_tokens, int model_dim, int kv_dim, int dtype_size, void * cu_seqlens, void * x_q, void  * x_k, void * x_v){
+int load_and_copy_sample_inputs(char * data_dir, int num_seqs, int total_q, int total_k, int model_dim, int kv_dim, int dtype_size, void * cu_seqlens_q, void * seqlens_k, void * x_q, void  * x_k, void * x_v){
 
 	
-	char * exts[4];
-       	exts[0]	= "cu_seqlens.dat\0";
-       	exts[1] = "x_q.dat\0";
-	exts[2] = "x_k.dat\0";
-	exts[3] = "x_v.dat\0";
-	size_t sizes[4];
+	char * exts[5];
+       	exts[0]	= "cu_seqlens_q.dat";
+       	exts[1] = "seqlens_k.dat";
+       	exts[2] = "x_q.dat";
+	exts[3] = "x_k.dat";
+	exts[4] = "x_v.dat";
 
+	size_t sizes[5];
 	sizes[0] = (num_seqs + 1) * sizeof(int);
-	sizes[1] = (total_tokens * model_dim * dtype_size);
-	sizes[2] = (total_tokens * kv_dim * dtype_size);
-	sizes[3] = (total_tokens * kv_dim * dtype_size);
+	sizes[1] = (num_seqs) * sizeof(int);
+	sizes[2] = (total_q * model_dim * dtype_size);
+	sizes[3] = (total_k * kv_dim * dtype_size);
+	sizes[4] = (total_k * kv_dim * dtype_size);
 
-	void * dev_ptrs[4];
-	dev_ptrs[0] = cu_seqlens;
-	dev_ptrs[1] = x_q;
-	dev_ptrs[2] = x_k;
-	dev_ptrs[3] = x_v;
+	void * dev_ptrs[5];
+	dev_ptrs[0] = cu_seqlens_q;
+	dev_ptrs[1] = seqlens_k;
+	dev_ptrs[2] = x_q;
+	dev_ptrs[3] = x_k;
+	dev_ptrs[4] = x_v;
 
 	int ret;
 
 	char filepath[PATH_MAX];
 
-	for (int i = 0; i < 4; i++){
+	for (int i = 0; i < 5; i++){
 		
 		sprintf(filepath, "%s/%s", data_dir, exts[i]);
 
@@ -357,15 +407,20 @@ int save_file_from_dev(char * filepath, size_t size_bytes, void * dev_ptr){
 }
 
 
-int save_flash_lib_out(char * data_dir, int total_tokens, int model_dim, int num_q_heads, size_t x_dt_bytes, void * x_attn_out, void * softmax_lse){
+int save_flash_lib_out(char * data_dir, int total_q, int model_dim, int num_q_heads, size_t x_dt_bytes, void * x_attn_out, void * softmax_lse){
 	
 	char * exts[2];
-	exts[0] = "flash_x_out.dat\0";
-	exts[1] = "flash_softmax_lse.dat\0";
+	exts[0] = "flash_x_out.dat";
+	exts[1] = "flash_softmax_lse.dat";
 
 	size_t sizes[2];
-	sizes[0] = total_tokens * model_dim * x_dt_bytes;
-	sizes[1] = total_tokens * num_q_heads * sizeof(float);
+
+	// if FP8 input, then BF16 output...
+	if (x_dt_bytes == 1){
+		x_dt_bytes == 2;
+	}
+	sizes[0] = total_q * model_dim * x_dt_bytes;
+	sizes[1] = total_q * num_q_heads * sizeof(float);
 
 	void * dev_ptrs[2];
 	dev_ptrs[0] = x_attn_out;
@@ -395,7 +450,7 @@ int main (int argc, char * argv[]){
 	int ret;
 
 	if (argc != 3){
-		fprintf(stderr, "Error Usage: ./test_flash_lib <num_seqs> <seq_len>\n");
+		fprintf(stderr, "Error Usage: ./test_libflash3 <num_seqs> <seq_len>\n");
 		return -1;
 	}	
 
@@ -444,8 +499,24 @@ int main (int argc, char * argv[]){
 
 	DataflowDatatype flash_dtype = DATAFLOW_FP16;
 
-	int total_tokens = num_seqs * seq_len;
-	int max_seqlen = seq_len;
+
+	// For now setting total q == total k
+	// and also every sequence of equal length
+	// (but still using varlen API)
+
+	// With cache, total k might be greater!
+	//int total_q = num_seqs * seq_len;
+	
+	// testing with last sequence only having last query
+	int total_q = (num_seqs - 1) * seq_len + 1;
+
+	int total_k = num_seqs * seq_len;
+
+
+
+	int max_seqlen_q = seq_len;
+	int max_seqlen_k = seq_len;
+
 	size_t x_dt_bytes = 2;
 	
 	
@@ -453,7 +524,8 @@ int main (int argc, char * argv[]){
 	int num_kv_heads = 8;
 	int head_dim = 128;	
 
-	void * cu_seqlens;
+	void * cu_seqlens_q;
+	void * seqlens_k;
 	void * x_q;
 	void * x_k;
 	void * x_v;
@@ -461,7 +533,12 @@ int main (int argc, char * argv[]){
 	void * softmax_lse;
 	void * attn_workspace;
 
-	ret = reserve_dev_memory(total_tokens, num_seqs, x_dt_bytes, num_q_heads, num_kv_heads, head_dim, &cu_seqlens, &x_q, &x_k, &x_v, &x_attn_out, &softmax_lse, &attn_workspace);
+	ret = reserve_dev_memory(total_q, total_k, num_seqs, x_dt_bytes, 
+					num_q_heads, num_kv_heads, head_dim, 
+					&cu_seqlens_q, &seqlens_k,
+					&x_q, &x_k, &x_v, 
+					&x_attn_out, &softmax_lse, 
+					&attn_workspace);
 	if (ret){
 		fprintf(stderr, "Error: could not reserve device memory...\n");
 		return -1;
@@ -472,7 +549,7 @@ int main (int argc, char * argv[]){
 	int kv_dim = head_dim * num_kv_heads;
 
 
-	ret = load_and_copy_sample_inputs(data_dir, num_seqs, total_tokens, model_dim, kv_dim, x_dt_bytes, cu_seqlens, x_q, x_k, x_v);
+	ret = load_and_copy_sample_inputs(data_dir, num_seqs, total_q, total_k, model_dim, kv_dim, x_dt_bytes, cu_seqlens_q, seqlens_k, x_q, x_k, x_v);
 	if (ret){
 		fprintf(stderr, "Error: could not load and copy sample inputs...\n");
 		return -1;
@@ -492,15 +569,20 @@ int main (int argc, char * argv[]){
 
 	for (int i = 0; i < 1; i++) {
 		printf("Iter: %d\n", i);
-		flash3_fwd_wrapper(stream, total_tokens, num_seqs, cu_seqlens, max_seqlen, (int) flash_dtype, 
+		flash3_fwd_wrapper(stream, 
+					num_seqs, total_q, total_k,
+					cu_seqlens_q, max_seqlen_q,
+					seqlens_k, max_seqlen_k,
+					(int) flash_dtype, 
 					num_q_heads, num_kv_heads, head_dim,
-					x_q, x_k, x_v, x_attn_out, softmax_lse, 
+					x_q, x_k, x_v, 
+					x_attn_out, softmax_lse, 
 					arch, num_sms, 
 					attn_workspace);
 		printf("Waiting for stream sync...!\n\n");
 		cuStreamSynchronize(stream);
 
-		save_flash_lib_out(data_dir, total_tokens, model_dim, num_q_heads, x_dt_bytes, x_attn_out, softmax_lse);
+		save_flash_lib_out(data_dir, total_q, model_dim, num_q_heads, x_dt_bytes, x_attn_out, softmax_lse);
 	}
 
 

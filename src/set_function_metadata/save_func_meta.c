@@ -56,9 +56,7 @@ int main(int argc, char * argv[]){
 	int total_native_functions = 54;
 
 	// matmul, attention fwd, attention bwd
-	
-	int total_external_functions = 1;
-	//int total_external_functions = 3;
+	int total_external_functions = 3;
 
 	int total_functions = total_native_functions + total_external_functions;
 
@@ -323,20 +321,19 @@ int main(int argc, char * argv[]){
 	cur_func_cnt++;
 
 
-	/*
 	// ATTENTION FWD
 
-	char * attention_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/attention_helper/lib/libflash3.so";
+	char * attention_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/attention_helper/lib/libattentionwrapper.so";
 
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
-	set_external_attention_fwd_skeleton(cur_op_skeleton);
+	set_external_flash3_attention_fwd_skeleton(cur_op_skeleton);
 
 	
 	char * attention_fwd_func_init_symbol = NULL;
-	char * attention_fwd_func_symbol = "flash_attention_fwd";
+	char * attention_fwd_func_symbol = "flash3_attention_fwd";
 
-	set_native_func_meta_strings(cur_func_meta, attention_lib_path, attention_fwd_func_init_symbol, attention_fwd_func_symbol);
+	set_external_func_meta_strings(cur_func_meta, attention_lib_path, attention_fwd_func_init_symbol, attention_fwd_func_symbol);
 
 	cur_func_cnt++;
 
@@ -345,15 +342,14 @@ int main(int argc, char * argv[]){
 
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
-	set_external_attention_bwd_skeleton(cur_op_skeleton);
+	set_external_flash3_attention_bwd_skeleton(cur_op_skeleton);
 
 	char * attention_bwd_func_init_symbol = NULL;
-	char * attention_bwd_func_symbol = "flash_attention_bwd";
+	char * attention_bwd_func_symbol = "flash3_attention_bwd";
 
-	set_native_func_meta_strings(cur_func_meta, attention_lib_path, attention_bwd_func_init_symbol, attention_bwd_func_symbol);
+	set_external_func_meta_strings(cur_func_meta, attention_lib_path, attention_bwd_func_init_symbol, attention_bwd_func_symbol);
 
 	cur_func_cnt++;
-	*/
 
 
 
