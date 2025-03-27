@@ -569,15 +569,14 @@ int main (int argc, char * argv[]){
 
 	for (int i = 0; i < 1; i++) {
 		printf("Iter: %d\n", i);
-		flash3_fwd_wrapper(stream, 
+		flash3_fwd_wrapper(stream, arch, num_sms,
 					num_seqs, total_q, total_k,
 					cu_seqlens_q, max_seqlen_q,
 					seqlens_k, max_seqlen_k,
 					(int) flash_dtype, 
 					num_q_heads, num_kv_heads, head_dim,
 					x_q, x_k, x_v, 
-					x_attn_out, softmax_lse, 
-					arch, num_sms, 
+					x_attn_out, softmax_lse,  
 					attn_workspace);
 		printf("Waiting for stream sync...!\n\n");
 		cuStreamSynchronize(stream);

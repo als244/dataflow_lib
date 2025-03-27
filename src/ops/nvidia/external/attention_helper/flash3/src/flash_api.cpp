@@ -203,7 +203,7 @@ extern "C" {
     // If num_seqs <= 992:
     //      attn_workspace_size += num_seqs * sizeof(int)
 
-    int flash3_fwd_wrapper(CUstream stream, 
+    int flash3_fwd_wrapper(CUstream stream, int arch, int num_sm, 
                             int num_seqs, int total_q, int total_k, 
                             int * cum_q_seqlens, int max_seqlen_q,
                             int * k_seqlens, int max_seqlen_k,
@@ -211,7 +211,6 @@ extern "C" {
                             int num_q_heads, int num_kv_heads, int head_dim, 
                             void * x_q, void * x_k, void * x_v, 
                             void * x_attn_out, void * softmax_lse, 
-                            int arch, int num_sm, 
                             void * attn_workspace) {
 
         int model_dim = num_q_heads * head_dim;
