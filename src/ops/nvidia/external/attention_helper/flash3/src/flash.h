@@ -216,10 +216,47 @@ void run_mha_bwd_(Flash_bwd_params &params, cudaStream_t stream);
 template <typename T, typename Tpartial, int kBlockK>
 void run_mha_fwd_combine_(Flash_fwd_params &params, cudaStream_t stream, bool enable_pdl);
 
+
+// PREPRARING FOR EXPORT
+
+// MUST BE EXACT SAME ORDERING AS IN
+// DATAFLOW_DATATYPE
+typedef enum {
+    DATAFLOW_NONE,
+    DATAFLOW_VOID,
+    DATAFLOW_FP64,
+    DATAFLOW_FP32,
+    DATAFLOW_FP16,
+    DATAFLOW_BF16,
+    DATAFLOW_FP8E4M3,
+    DATAFLOW_FP8E5M2,
+    DATAFLOW_UINT64,
+    DATAFLOW_UINT32,
+    DATAFLOW_UINT16,
+    DATAFLOW_UINT8,
+    DATAFLOW_LONG,
+    DATAFLOW_INT,
+    DATAFLOW_BOOL,
+    DATAFLOW_FP64_SCALAR,
+    DATAFLOW_FP32_SCALAR,
+    DATAFLOW_FP16_SCALAR,
+    DATAFLOW_BF16_SCALAR,
+    DATAFLOW_FP8E4M3_SCALAR,
+    DATAFLOW_FP8E5M2_SCALAR,
+    DATAFLOW_UINT64_SCALAR,
+    DATAFLOW_UINT32_SCALAR,
+    DATAFLOW_UINT16_SCALAR,
+    DATAFLOW_UINT8_SCALAR,
+    DATAFLOW_LONG_SCALAR,
+    DATAFLOW_INT_SCALAR,
+    DATAFLOW_BOOL_SCALAR
+} DataflowDatatype;
+
 // C functions
 extern "C" {
-    int flash_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
-                                int num_q_heads, int num_kv_heads, int head_dim, 
-                                void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
-                                int arch, int num_sm);
+    int flash3_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
+                            int num_q_heads, int num_kv_heads, int head_dim, 
+                            void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
+                            int arch, int num_sm, 
+                            void * attn_workspace);
 }

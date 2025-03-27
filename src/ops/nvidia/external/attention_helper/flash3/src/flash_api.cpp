@@ -11,7 +11,7 @@
 #include "cuda_check.h"
 
 
-bool get_pack_gqa(Flash_fwd_params const& params) {
+inline bool get_pack_gqa(Flash_fwd_params const& params) {
     // Always enable PackGQA for Sm8x or PagedKVNonTMA or Split to reduce compilation and binary size.
     // Has little effect on speed.
     if (params.arch < 90 || (params.page_table && !params.pagedkv_tma) || params.num_splits > 1) { return true; }
@@ -23,7 +23,7 @@ bool get_pack_gqa(Flash_fwd_params const& params) {
     return should_pack_gqa(params.cu_seqlens_q || params.seqused_q, params.seqlen_q, params.h / params.h_k, kBlockM);
 }
 
-int get_num_splits(Flash_fwd_params const& params) {
+inline int get_num_splits(Flash_fwd_params const& params) {
     // Always enable PackGQA for Split
     // params.page_table must already be set
     // This needs to match the kernel configs
@@ -170,40 +170,10 @@ void run_mha_bwd(Flash_bwd_params &params, cudaStream_t stream) {
     });
 }
 
-typedef enum {
-    DATAFLOW_NONE,
-    DATAFLOW_VOID,
-    DATAFLOW_FP64,
-    DATAFLOW_FP32,
-    DATAFLOW_FP16,
-    DATAFLOW_BF16,
-    DATAFLOW_FP8E4M3,
-    DATAFLOW_FP8E5M2,
-    DATAFLOW_UINT64,
-    DATAFLOW_UINT32,
-    DATAFLOW_UINT16,
-    DATAFLOW_UINT8,
-    DATAFLOW_LONG,
-    DATAFLOW_INT,
-    DATAFLOW_BOOL,
-    DATAFLOW_FP64_SCALAR,
-    DATAFLOW_FP32_SCALAR,
-    DATAFLOW_FP16_SCALAR,
-    DATAFLOW_BF16_SCALAR,
-    DATAFLOW_FP8E4M3_SCALAR,
-    DATAFLOW_FP8E5M2_SCALAR,
-    DATAFLOW_UINT64_SCALAR,
-    DATAFLOW_UINT32_SCALAR,
-    DATAFLOW_UINT16_SCALAR,
-    DATAFLOW_UINT8_SCALAR,
-    DATAFLOW_LONG_SCALAR,
-    DATAFLOW_INT_SCALAR,
-    DATAFLOW_BOOL_SCALAR
-} DataflowDatatype;
-
 extern "C" {
     
-    int flash_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
+    /*
+    int flash2_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
                                 int num_q_heads, int num_kv_heads, int head_dim, 
                                 void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
                                 int arch, int num_sm) {
@@ -305,5 +275,200 @@ extern "C" {
         run_mha_fwd(params, stream);
 
         return 0;
-    }   
+    }
+    */
+
+    int flash3_fwd_wrapper(CUstream stream, int total_tokens, int num_seqs,  int * cu_seqlens, int max_seqlen, int flash_dtype_as_int, 
+                            int num_q_heads, int num_kv_heads, int head_dim, 
+                            void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
+                            int arch, int num_sm, 
+                            void * attn_workspace) {
+
+        int model_dim = num_q_heads * head_dim;
+        int kv_dim = num_kv_heads * head_dim;
+
+        Flash_fwd_params params;
+        
+        params.q_descale_ptr = NULL;
+        params.k_descale_ptr = NULL;
+        params.v_descale_ptr = NULL;
+    
+        params.q_descale_batch_stride = 0;
+        params.q_descale_head_stride = 0;
+        params.k_descale_batch_stride = 0;
+                params.k_descale_head_stride = 0;
+        params.v_descale_batch_stride = 0;
+                params.v_descale_head_stride = 0;
+        
+        params.total_knew = 0;
+
+        params.q_batch_stride = 0;
+        params.k_batch_stride = 0;
+        params.v_batch_stride = 0;
+        params.o_batch_stride = 0;
+        
+
+        params.is_fp32 = false;
+        params.is_bf16 = false;
+        params.is_e4m3 = false;
+
+        DataflowDatatype flash_dt = (DataflowDatatype) flash_dtype_as_int;
+
+        if (flash_dt == DATAFLOW_FP32){
+            params.is_fp32 = true;
+        }
+        else if (flash_dt == DATAFLOW_BF16){
+            params.is_bf16 = true;
+        }
+        else if (flash_dt == DATAFLOW_FP8E4M3){
+            params.is_e4m3 = true;
+        }
+        else{
+            if (flash_dt != DATAFLOW_FP16){
+                fprintf(stderr, "Error: dtype of DataflowDatatype enum val of %d not supported in flash3...\n", flash_dtype_as_int);
+                return -1;
+            }
+        }
+
+        params.total_q = total_tokens;
+        params.total_k = total_tokens;
+
+
+        params.q_ptr = x_q;
+        params.k_ptr = x_k;
+        params.v_ptr = x_v;
+        params.o_ptr = x_attn_out;
+
+        params.q_row_stride = model_dim;
+        params.k_row_stride = kv_dim;
+        params.v_row_stride = kv_dim;
+        params.o_row_stride = model_dim;
+
+        params.q_head_stride = head_dim;
+        params.k_head_stride = head_dim;
+        params.v_head_stride = head_dim;
+        params.o_head_stride = head_dim;
+
+        params.v_dim_stride = 1;
+
+        params.cu_seqlens_q = cu_seqlens;
+        params.cu_seqlens_k = cu_seqlens;
+        
+        params.cu_seqlens_knew = NULL;
+        params.leftpad_k = NULL;
+        params.seqused_q = NULL;
+        params.seqused_k = NULL;
+
+        params.knew_ptr = NULL;
+        params.vnew_ptr = NULL;
+        
+        params.knew_batch_stride = 0;
+        params.knew_row_stride = 0;
+        params.knew_head_stride = 0;
+        params.vnew_row_stride = 0;
+        params.vnew_head_stride = 0;
+
+            
+
+        params.qv_ptr = NULL;
+        params.qv_batch_stride = 0;
+        params.qv_row_stride = 0;
+        params.qv_head_stride = 0;
+
+        params.kv_batch_idx = 0;
+        params.page_table = NULL;
+        params.page_table_batch_stride = 0;
+        params.page_size = 0;
+        params.num_pages = 0;
+
+        params.rng_state = NULL;
+
+        params.oaccum_batch_stride = 0;
+        params.oaccum_split_stride = 0;
+        params.oaccum_row_stride = 0;
+        params.oaccum_head_stride = 0;
+
+        params.lseaccum_batch_stride = 0;
+                params.lseaccum_split_stride = 0;
+                params.lseaccum_head_stride = 0;
+
+
+        params.softmax_lse_ptr = softmax_lse;
+
+        params.b = num_seqs;
+        params.b_k = num_seqs;
+        params.h = num_q_heads;
+        params.h_k = num_kv_heads;
+        params.d = head_dim;
+        params.d_rounded = head_dim;
+        params.dv = head_dim;
+        params.dv_rounded = head_dim;
+
+        params.seqlen_q = max_seqlen;
+        params.seqlen_k = max_seqlen;
+        
+        params.seqlen_q_rounded = max_seqlen;
+        params.seqlen_k_rounded = max_seqlen;
+
+        params.scale_softmax = 1.0 / sqrtf((float) model_dim);
+        params.softcap = 0.0f;
+
+        params.p_dropout = 1.0f;
+
+        params.p_dropout_in_uint8_t = (uint8_t) 255;
+
+        params.rp_dropout = 1.0f;
+    
+        params.is_causal = true;
+        params.is_local = false;
+        params.window_size_left = -1;
+        params.window_size_right = -1;
+        
+        params.rotary_cos_ptr = NULL;
+        params.rotary_sin_ptr = NULL;
+        params.is_rotary_interleaved = false;
+        params.rotary_dim = 0;
+
+        params.arch = arch;
+        params.num_sm = num_sm;
+
+        int is_dynamic_split = 0;
+        params.num_splits_dynamic_ptr = &is_dynamic_split;
+        
+        int num_splits = get_num_splits(params);
+        params.num_splits = num_splits;
+
+        float * cur_attn_workspace = (float *) attn_workspace;
+        
+        if (params.num_splits > 1){
+            
+            // (num_splits, num_heads, total_q, headdim)
+            params.oaccum_ptr = (float *) cur_attn_workspace;
+            cur_attn_workspace += (num_splits * num_q_heads * total_tokens * head_dim);
+            
+            params.oaccum_split_stride = params.num_splits;
+            params.oaccum_row_stride = model_dim;
+            params.oaccum_head_stride = head_dim;
+
+            // (num_splits, num_heads, total_q)
+            params.softmax_lseaccum_ptr = (float *) cur_attn_workspace;
+            cur_attn_workspace += (num_splits * num_q_heads * total_tokens);
+            params.lseaccum_split_stride = params.num_splits;
+            params.lseaccum_head_stride = head_dim;
+        }
+
+        params.pack_gqa = get_pack_gqa(params);
+
+        params.tile_count_semaphore = NULL;
+
+        if (arch >= 90){
+            params.tile_count_semaphore = (int *) cur_attn_workspace;
+        }
+
+        // Also calls combine at end of function if 
+        // num_splits > 1
+        run_mha_fwd(params, stream);
+
+        return 0;
+    }
 }
