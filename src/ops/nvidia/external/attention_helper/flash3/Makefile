@@ -77,7 +77,7 @@ CU_PREP_SCHED_FLAGS =
 FLASH_API_SRC = src/flash_api.cpp
 FLASH_API_OBJ = build/flash_api.o
 
-WRAPPER_SHARED_LIB = build/libflash3.so
+WRAPPER_SHARED_LIB = lib/libflash3.so
 
 
 all: ${WRAPPER_SHARED_LIB}

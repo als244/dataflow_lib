@@ -27,7 +27,7 @@ CUDA_KERNELS_SRC = cuda_kernels.cu
 NATIVE_FUNC_SRC_FILES = norm/rms_norm_config.c attention/attn_misc_config.c activations/swiglu_config.c loss/loss_misc_config.c
 NATIVE_FUNC_LIB_OBJ_DEPENDS = ../../dataflow_handle/nvidia/objs/cuda_drv.o ../../datatype/objs/dataflow_datatype.o
 
-NATIVE_FUNC_LIB = build/cuda_kernels_config.so
+NATIVE_FUNC_LIB = lib/cuda_kernels_config.so
 
 all: ${NATIVE_FUNC_LIB} ${SAVE_FUNC_EXEC} cuda_kernels_ptx cuda_kernels_cubin
 
