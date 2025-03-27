@@ -108,6 +108,57 @@ int initialize_stream(CUstream * stream, int prio){
 	return 0;
 }
 
+int get_dev_info(int device_id, int * arch, int * num_sms){
+
+	CUresult result;
+	const char * err;
+
+
+	CUdevice dev;
+	result = cuDeviceGet(&dev, device_id);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+    		fprintf(stderr, "Error: Could not get device: %s\n", err);
+    		return -1;
+	}
+
+	int major_arch_num;
+	int minor_arch_num;
+
+	result = cuDeviceGetAttribute(&major_arch_num, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, dev);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+		fprintf(stderr, "Error: Could not get device major arch number: %s\n", err);
+		return -1;
+	}
+
+	result = cuDeviceGetAttribute(&minor_arch_num, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, dev);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+		fprintf(stderr, "Error: Could not get device minor arch number: %s\n", err);
+		return -1;
+	}
+
+	int arch_num = 10 * major_arch_num + minor_arch_num;
+
+	
+
+	int sm_count;
+
+	result = cuDeviceGetAttribute(&sm_count, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, dev);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+		fprintf(stderr, "Error: Could not get sm count: %s\n", err);
+		return -1;
+	}
+
+	*arch = arch_num;
+	*num_sms = sm_count;
+
+	return 0;
+
+}
+
 
 int reserve_dev_memory(int total_tokens, int num_seqs, size_t x_dt_bytes, int num_q_heads, int num_kv_heads, int head_dim, void ** cu_seqlens, void ** x_q, void  ** x_k, void ** x_v, void ** x_attn_out, void ** softmax_lse, void ** attn_workspace){
 
@@ -430,16 +481,21 @@ int main (int argc, char * argv[]){
 
 	printf("CALLING FLASH ATTENTION...!\n\n");
 
+	int arch;
+	int num_sms;
 
-	int arch = 90;
-	int num_sm = 132;
+	ret = get_dev_info(device_id, &arch, &num_sms);
+	if (ret){
+		fprintf(stderr, "Error: failed to get arch and sm count for device id: %d...\n", device_id);
+		return -1;
+	}
 
 	for (int i = 0; i < 1; i++) {
 		printf("Iter: %d\n", i);
 		flash3_fwd_wrapper(stream, total_tokens, num_seqs, cu_seqlens, max_seqlen, (int) flash_dtype, 
 					num_q_heads, num_kv_heads, head_dim,
 					x_q, x_k, x_v, x_attn_out, softmax_lse, 
-					arch, num_sm, 
+					arch, num_sms, 
 					attn_workspace);
 		printf("Waiting for stream sync...!\n\n");
 		cuStreamSynchronize(stream);
