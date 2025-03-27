@@ -105,4 +105,7 @@ build/instantiations/sm100/%.o: src/instantiations/sm100/%.cu
 
 
 clean:
-	rm -f ${WRAPPER_SHARED_LIB} ${FLASH_API_OBJ} ${CU_COMBINE_OBJ} ${CU_KERNEL_OBJS}
+	rm -f ${WRAPPER_SHARED_LIB} ${FLASH_API_OBJ} ${CU_COMBINE_OBJ} ${CU_PREP_SCHED_OBJ}
+
+clean_kernels:
+	rm -f ${CU_KERNEL_OBJS}
