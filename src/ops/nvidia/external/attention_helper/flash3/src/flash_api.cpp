@@ -432,9 +432,11 @@ extern "C" {
         params.arch = arch;
         params.num_sm = num_sm;
 
-        int is_dynamic_split = 0;
-        params.num_splits_dynamic_ptr = &is_dynamic_split;
-        
+        // Need to figure out what this does...
+        //int is_dynamic_split = 0;
+        //params.num_splits_dynamic_ptr = &is_dynamic_split;
+        params.num_splits_dynamic_ptr = NULL;
+
         int num_splits = get_num_splits(params);
         params.num_splits = num_splits;
 
