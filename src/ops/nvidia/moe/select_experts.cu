@@ -123,6 +123,9 @@ extern "C" __global__ void select_experts_fp32_kernel(int total_tokens, int n_ex
             // (because a top-k heap should be used)
             // but typically small number of experts and top_k experts
             // so the redundant "search fo next smallest" iterations are fine and simpler...
+
+            // Also only 1 thread out of warp is working, but 
+            // if top_k is a large number then this could be problematic...
             if (lane_id == 0){
 
                 for (int j = 0; j < WARP_SIZE; j++){
@@ -138,6 +141,7 @@ extern "C" __global__ void select_experts_fp32_kernel(int total_tokens, int n_ex
 
                         top_k_sum += warp_top_k_expert_vals[warp_id * top_k_experts + min_top_k_ind];
 
+                        // NOTE: this is the wasteful loop
                         // reset min top k val
                         min_top_k_val = CONST_DEV_FLOAT_INF;
                         for (int k = 0; k < top_k_experts; k++){
