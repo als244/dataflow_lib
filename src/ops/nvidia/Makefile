@@ -9,7 +9,7 @@ CUDA_INCLUDE_DIR = /usr/local/cuda/include
 CUDA_LIB_DIR = /usr/local/cuda/lib64/stubs
 CUDA_LIB_DEPENDS = -lcuda
 
-CUDA_ARCH_NUM = 86
+CUDA_ARCH_NUM = 90
 
 PROJ_COMMON_HEADER = ../../../include
 DATAFLOW_HANDLE_HEADER = ../../dataflow_handle/include

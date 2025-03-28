@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "set_native_op_skeletons.h"
 #include "set_external_op_skeletons.h"
@@ -306,13 +307,36 @@ int main(int argc, char * argv[]){
 
 	// External Functions!
 
-	// MATMUL
+	
+    	char cwd[PATH_MAX];
 
+    	// Get the current working directory
+    	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        	fprintf(stderr, "getcwd() error");
+        	return -1;
+    	}
+
+	char parent_dir[PATH_MAX];
+
+    	// Copy current directory to parent buffer
+    	strcpy(parent_dir, cwd);
+
+    	// Find the last '/' in the path
+    	char *last_slash = strrchr(parent_dir, '/');
+    	if (last_slash != NULL && last_slash != parent_dir) {
+        	// Truncate the string at the last slash
+        	*last_slash = '\0';
+    	}
+
+	// MATMUL
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
 	set_external_matmul_skeleton(cur_op_skeleton);
+	
 
-	char * cublas_matmul_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so";
+	char cublas_matmul_lib_path[PATH_MAX];
+       	sprintf(cublas_matmul_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so");
+
 	char * cublas_matmul_func_init_symbol = "cublas_matmul_init";
 	char * cublas_matmul_func_symbol = "cublas_matmul";
 
@@ -323,7 +347,8 @@ int main(int argc, char * argv[]){
 
 	// ATTENTION FWD
 
-	char * attention_lib_path = "/home/shein/Documents/grad_school/research/ml_dataflow/dataflow_lib/src/ops/nvidia/external/attention_helper/lib/libattentionwrapper.so";
+	char attention_lib_path[PATH_MAX];
+        sprintf(attention_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/attention_helper/lib/libattentionwrapper.so");
 
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
