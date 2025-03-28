@@ -65,9 +65,9 @@ int main(int argc, char * argv[]){
 	char * kernel_post_strings[10] = {"kernel", "kernel", "kernel", "kernel", "kernel", "kernel", "kernel", "kernel", "kernel", "kernel"};
 	char * kernel_set_attribute_symbols[10] = {"rms_norm_set_attribute_config", "rms_norm_set_attribute_config", "rms_norm_set_attribute_config", NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 	char * kernel_set_launch_symbols[10] = {"rms_norm_set_launch_config", "rms_norm_bwd_x_set_launch_config", "rms_norm_bwd_w_set_launch_config", 
-											"rope_set_launch_config", "rope_set_launch_config", "copy_to_seq_context_set_launch_config", 
-											"swiglu_set_launch_config", "swiglu_set_launch_config", 
-											"softmax_set_launch_config", "cross_entropy_loss_set_launch_config"};
+	"rope_set_launch_config", "rope_set_launch_config", "copy_to_seq_context_set_launch_config", 
+	"swiglu_set_launch_config", "swiglu_set_launch_config", 
+	"softmax_set_launch_config", "cross_entropy_loss_set_launch_config"};
 	
 	char * datatype_strings[5] = {"fp32", "fp16", "bf16", "fp8e4m3", "fp8e5m2"};
 	DataflowDatatype fwd_datatypes[5] = {DATAFLOW_FP32, DATAFLOW_FP16, DATAFLOW_BF16, DATAFLOW_FP8E4M3, DATAFLOW_FP8E5M2};
@@ -95,7 +95,7 @@ int main(int argc, char * argv[]){
 		set_native_rms_norm_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -110,7 +110,7 @@ int main(int argc, char * argv[]){
 		set_native_rms_norm_bwd_x_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[i], kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -124,7 +124,7 @@ int main(int argc, char * argv[]){
 			set_native_rms_norm_bwd_x_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[j]);
 
 			set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[j], kernel_post_strings[cur_func_type],
-											kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+				kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 			cur_func_cnt++;
 		}
@@ -141,7 +141,7 @@ int main(int argc, char * argv[]){
 		set_native_rms_norm_bwd_w_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[i], kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -155,7 +155,7 @@ int main(int argc, char * argv[]){
 			set_native_rms_norm_bwd_w_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[j]);
 
 			set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[j], kernel_post_strings[cur_func_type],
-											kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+				kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 			cur_func_cnt++;
 		}
@@ -171,7 +171,7 @@ int main(int argc, char * argv[]){
 		set_native_rope_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -186,7 +186,7 @@ int main(int argc, char * argv[]){
 		set_native_rope_bwd_x_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -202,7 +202,7 @@ int main(int argc, char * argv[]){
 		set_native_copy_to_seq_context_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -220,7 +220,7 @@ int main(int argc, char * argv[]){
 		set_native_swiglu_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -237,7 +237,7 @@ int main(int argc, char * argv[]){
 		set_native_swiglu_bwd_x_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[i], kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -251,7 +251,7 @@ int main(int argc, char * argv[]){
 			set_native_swiglu_bwd_x_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[j]);
 
 			set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[j], kernel_post_strings[cur_func_type],
-											kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+				kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 			cur_func_cnt++;
 		}
@@ -267,7 +267,7 @@ int main(int argc, char * argv[]){
 		set_native_softmax_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[i], kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -281,7 +281,7 @@ int main(int argc, char * argv[]){
 			set_native_softmax_skeleton(cur_op_skeleton, fwd_datatypes[i], fwd_datatypes[j]);
 
 			set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], datatype_strings[j], kernel_post_strings[cur_func_type],
-											kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+				kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 			cur_func_cnt++;
 		}
@@ -297,7 +297,7 @@ int main(int argc, char * argv[]){
 		set_native_cross_entropy_loss_skeleton(cur_op_skeleton, fwd_datatypes[i]);
 
 		set_native_func_meta_strings(cur_func_meta, kernel_pre_strings[cur_func_type], datatype_strings[i], NULL, kernel_post_strings[cur_func_type],
-										kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
+			kernel_set_attribute_symbols[cur_func_type], kernel_set_launch_symbols[cur_func_type]);
 
 		cur_func_cnt++;
 	}
@@ -308,25 +308,26 @@ int main(int argc, char * argv[]){
 	// External Functions!
 
 	
-    	char cwd[PATH_MAX];
+	char cwd[PATH_MAX];
 
-    	// Get the current working directory
-    	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-        	fprintf(stderr, "getcwd() error");
-        	return -1;
-    	}
+		// Get the current working directory
+	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+		fprintf(stderr, "getcwd() error");
+		return -1;
+	}
 
-	char parent_dir[PATH_MAX];
+	// so we don't get overflow warnings...
+	char parent_dir[PATH_MAX - 100];
 
-    	// Copy current directory to parent buffer
-    	strcpy(parent_dir, cwd);
+		// Copy current directory to parent buffer
+	strcpy(parent_dir, cwd);
 
-    	// Find the last '/' in the path
-    	char *last_slash = strrchr(parent_dir, '/');
-    	if (last_slash != NULL && last_slash != parent_dir) {
-        	// Truncate the string at the last slash
-        	*last_slash = '\0';
-    	}
+		// Find the last '/' in the path
+	char *last_slash = strrchr(parent_dir, '/');
+	if (last_slash != NULL && last_slash != parent_dir) {
+			// Truncate the string at the last slash
+		*last_slash = '\0';
+	}
 
 	// MATMUL
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
@@ -335,7 +336,7 @@ int main(int argc, char * argv[]){
 	
 
 	char cublas_matmul_lib_path[PATH_MAX];
-       	sprintf(cublas_matmul_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so");
+	sprintf(cublas_matmul_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so");
 
 	char * cublas_matmul_func_init_symbol = "cublas_matmul_init";
 	char * cublas_matmul_func_symbol = "cublas_matmul";
@@ -348,7 +349,7 @@ int main(int argc, char * argv[]){
 	// ATTENTION FWD
 
 	char attention_lib_path[PATH_MAX];
-        sprintf(attention_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/attention_helper/lib/libattentionwrapper.so");
+	sprintf(attention_lib_path, "%s/%s", parent_dir, "ops/nvidia/external/attention_helper/lib/libattentionwrapper.so");
 
 	cur_func_meta = &(all_func_meta[cur_func_cnt]);
 	cur_op_skeleton = &(cur_func_meta -> op_skeleton);
