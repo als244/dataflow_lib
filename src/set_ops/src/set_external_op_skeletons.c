@@ -79,28 +79,62 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	// TODO: 
-
-	/*
-	int num_args = 5;
+	int num_args = 17;
 
 	skeleton_header -> num_args = num_args;
 
 	DataflowDatatype * arg_dtypes = skeleton_header -> arg_dtypes;
 
+	// flash_dtype_as_int
 	arg_dtypes[0] = DATAFLOW_INT_SCALAR;
+	
+	// num_seqs
 	arg_dtypes[1] = DATAFLOW_INT_SCALAR;
-	arg_dtypes[2] = DATAFLOW_FP32_SCALAR;
-	arg_dtypes[3] = DATAFLOW_FP32;
-	arg_dtypes[4] = DATAFLOW_FP32;
+	// total_q
+	arg_dtypes[2] = DATAFLOW_INT_SCALAR;
+	// total_k
+	arg_dtypes[3] = DATAFLOW_INT_SCALAR;
+	// cum_q_seqlens
+	arg_dtypes[4] = DATAFLOW_INT;
+	// max_seqlen_q
+	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
+	// k_seqlens
+	arg_dtypes[6] = DATAFLOW_INT;
+	// max_seqlen_k
+	
+	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
+	// num_q_heads
+	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
+	// num_kv_heads
+	arg_dtypes[9] = DATAFLOW_INT_SCALAR;
+	// head_dim
+	arg_dtypes[10] = DATAFLOW_INT_SCALAR;
+	
+	// x_q
+	arg_dtypes[11] = DATAFLOW_VOID;
+	// x_k
+	arg_dtypes[12] = DATAFLOW_VOID;
+	// x_v
+	arg_dtypes[13] = DATAFLOW_VOID;
+
+	
+	// x_attn_out
+	arg_dtypes[14] = DATAFLOW_VOID;
+	// softmax_lse
+	arg_dtypes[15] = DATAFLOW_VOID;
+
+	// attn_workspace
+	arg_dtypes[16] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;
 	}
-	*/
 
 	do_fingerprinting(skeleton_header, sizeof(Op_Skeleton_Header), (skeleton -> identifier).fingerprint, OP_IDENTIFIER_FINGERPRINT_TYPE);
 }
+
+
+// TODO:
 
 void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 
@@ -115,25 +149,58 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	// last character must be null no matter what, if nickname is less than null bytes were added prior
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
-	// TODO: 
-	
-	/*
-	int num_args = 5;
+
+	int num_args = 17;
 
 	skeleton_header -> num_args = num_args;
 
 	DataflowDatatype * arg_dtypes = skeleton_header -> arg_dtypes;
 
+	// flash_dtype_as_int
 	arg_dtypes[0] = DATAFLOW_INT_SCALAR;
+	
+	// num_seqs
 	arg_dtypes[1] = DATAFLOW_INT_SCALAR;
-	arg_dtypes[2] = DATAFLOW_FP32_SCALAR;
-	arg_dtypes[3] = DATAFLOW_FP32;
-	arg_dtypes[4] = DATAFLOW_FP32;
+	// total_q
+	arg_dtypes[2] = DATAFLOW_INT_SCALAR;
+	// total_k
+	arg_dtypes[3] = DATAFLOW_INT_SCALAR;
+	// cum_q_seqlens
+	arg_dtypes[4] = DATAFLOW_INT;
+	// max_seqlen_q
+	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
+	// k_seqlens
+	arg_dtypes[6] = DATAFLOW_INT;
+	// max_seqlen_k
+	
+	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
+	// num_q_heads
+	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
+	// num_kv_heads
+	arg_dtypes[9] = DATAFLOW_INT_SCALAR;
+	// head_dim
+	arg_dtypes[10] = DATAFLOW_INT_SCALAR;
+	
+	// x_q
+	arg_dtypes[11] = DATAFLOW_VOID;
+	// x_k
+	arg_dtypes[12] = DATAFLOW_VOID;
+	// x_v
+	arg_dtypes[13] = DATAFLOW_VOID;
+
+	
+	// x_attn_out
+	arg_dtypes[14] = DATAFLOW_VOID;
+	// softmax_lse
+	arg_dtypes[15] = DATAFLOW_VOID;
+
+	// attn_workspace
+	arg_dtypes[16] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;
 	}
-	*/
 
 	do_fingerprinting(skeleton_header, sizeof(Op_Skeleton_Header), (skeleton -> identifier).fingerprint, OP_IDENTIFIER_FINGERPRINT_TYPE);
 }
+

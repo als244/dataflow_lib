@@ -24,6 +24,13 @@ typedef struct cublas_matmul_op_extra {
 // responsible for setting cuda function extra
 int cublas_matmul_init(Dataflow_Handle * dataflow_handle, void * op_table_value);
 
+
+// If A, C, D are all stored in Row-Major
+// And B is stored in Col-Major. If so, it compute:
+// D = alpha * AB + beta * C
+
+// If B is stored in Row-Major that implies it computes:
+// D = alpha * AB^T + beta * C
 int cublas_matmul(Dataflow_Handle * dataflow_handle, int stream_id, Op * op, void * op_extra);
 
 #endif

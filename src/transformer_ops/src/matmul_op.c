@@ -1,13 +1,12 @@
 #include "transformer_ops.h"
 
 
-// If A, B, C, D are all stored in Row-Major:
-// Computes D = alpha * AB^T + beta * C
+// If A, C, D are all stored in Row-Major
+// And B is stored in Col-Major. If so, it compute:
+// D = alpha * AB + beta * C
 
-// If B is stored in Col-Major:
-// Computes D = alpha * AB + beta * C
-
-// Under the hood, computes "TN" matrix multiplication from col-major perspective where A and B are swapped
+// If B is stored in Row-Major that implies it computes:
+// D = alpha * AB^T + beta * C
 int submit_matmul(Dataflow_Handle * handle, int stream_id, 
 					DataflowDatatype a_dt, DataflowDatatype b_dt, DataflowDatatype c_dt, DataflowDatatype d_dt,
 					DataflowDatatype compute_dt,

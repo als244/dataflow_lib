@@ -42,13 +42,14 @@ OBJS = ${CUDA_DATAFLOW_HANDLE_OBJ_DIR}/cuda_drv.o ${CUDA_DATAFLOW_HANDLE_OBJ_DIR
 
 DEPEND_OBJS = ${TABLE_OBJ_DIR}/table.o
 
-TRANSFORMER_OP_DIR = ../../transformer_ops
-TRANSFORMER_OP_OBJ_DEPENDS = ${TRANSFORMER_OP_DIR}/objs/matmul_op.o ${TRANSFORMER_OP_DIR}/objs/norm_ops.o ${TRANSFORMER_OP_DIR}/objs/attn_misc_ops.o ${TRANSFORMER_OP_DIR}/objs/mlp_misc_ops.o ${TRANSFORMER_OP_DIR}/objs/loss_misc_ops.o
-TRANSFORMER_OP_INCLUDE_DIR = ${TRANSFORMER_OP_DIR}/include
+TRANSFORMER_OP_INCLUDE_DIR = ../../transformer_ops/include
+TRANSFORMER_OP_LIB_DIR = ../../transformer_ops/lib
+TRANSFORMER_OP_LIB = -ltransformerops
+
 
 TEST_INCLUDE_DIR = ${CUDA_DATAFLOW_HANDLE_TEST_DIR}
 TEST_DEPEND_OBJS = ${CUDA_DATAFLOW_HANDLE_TEST_DIR}/create_host_matrix.o ${DATATYPE_OBJ_DEPENDS} ${FINGERPRINT_OBJ_DIR}/fingerprint.o ${SET_OPS_OBJ_DIR}/set_native_op_skeletons.o ${SET_OPS_OBJ_DIR}/set_external_op_skeletons.o ${TRANSFORMER_OP_OBJ_DEPENDS}
-TEST_LIB_DEPENDS = -lm
+TEST_LIB_DEPENDS = -lm -L${TRANSFORMER_OP_LIB_DIR} ${TRANSFORMER_OP_LIB} -Wl,--enable-new-dtags -Wl,-rpath,${TRANSFORMER_OP_LIB_DIR}
 
 EXECS = ${CUDA_DATAFLOW_HANDLE_TEST_DIR}/test_cuda_dataflow_handle_matmul ${CUDA_DATAFLOW_HANDLE_TEST_DIR}/test_cuda_dataflow_handle_rms
 
