@@ -19,7 +19,7 @@ all: ${EXECS} ${ALL_OBJS}
 
 
 test/test_convert: test/test_convert.c objs/dataflow_datatype.o objs/solo_conversion.o objs/convert_datatype.o objs/convert_datatype_avx512.o
-	${CC} ${CFLAGS} -I${DATATYPES_INCLUDE_DIR} -I${PROJ_INCLUDE_DIR} $^ -o $@
+	${CC} ${CFLAGS} -I${DATATYPES_INCLUDE_DIR} -I${PROJ_INCLUDE_DIR} $^ -o $@ ${DATATYPES_LIB_DEPENDS}
 
 objs/dataflow_datatype.o: src/dataflow_datatype.c
 	${CC} ${CFLAGS} -I${DATATYPES_INCLUDE_DIR} -I${PROJ_INCLUDE_DIR} -c -o $@ $<
