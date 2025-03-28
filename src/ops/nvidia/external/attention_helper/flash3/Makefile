@@ -58,20 +58,19 @@ CU_COMBINE_OBJ = build/flash_fwd_combine.o
 CU_PREP_SCHED_SRC = src/flash_prepare_scheduler.cu
 CU_PREP_SCHED_OBJ = build/flash_prepare_scheduler.o
 
-## I think combine and sched are only valid on SM90 and
-## will only be called for kernels on SM90 paths...
 
-CU_COMBINE_ARCH = 80
-CU_COMBINE_FLAGS = 
 
-# CU_COMBINE_ARCH = 90a
-# CU_COMBINE_FLAGS = ${NVCC_FLAGS_SM90}
+#CU_COMBINE_ARCH = 80
+#CU_COMBINE_FLAGS = 
 
-CU_PREP_SCHED_ARCH = 80
-CU_PREP_SCHED_FLAGS = 
+CU_COMBINE_ARCH = 90a
+CU_COMBINE_FLAGS = ${NVCC_FLAGS_SM90}
 
-# CU_PREP_SCHED_ARCH = 90a
-# CU_PREP_SCHED_FLAGS = ${NVCC_FLAGS_SM90}
+#CU_PREP_SCHED_ARCH = 80
+#CU_PREP_SCHED_FLAGS = 
+
+CU_PREP_SCHED_ARCH = 90a
+CU_PREP_SCHED_FLAGS = ${NVCC_FLAGS_SM90}
 
 
 FLASH_API_SRC = src/flash_api.cpp
