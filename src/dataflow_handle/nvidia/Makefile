@@ -43,7 +43,10 @@ OBJS = ${CUDA_DATAFLOW_HANDLE_OBJ_DIR}/cuda_drv.o ${CUDA_DATAFLOW_HANDLE_OBJ_DIR
 DEPEND_OBJS = ${TABLE_OBJ_DIR}/table.o
 
 TRANSFORMER_OP_INCLUDE_DIR = ../../transformer_ops/include
-TRANSFORMER_OP_LIB_DIR = ../../transformer_ops/lib
+
+CWD = ${CURDUR}
+
+TRANSFORMER_OP_LIB_DIR = ${CURDIR}/../../transformer_ops/lib
 TRANSFORMER_OP_LIB = -ltransformerops
 
 
