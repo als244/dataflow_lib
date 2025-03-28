@@ -42,10 +42,10 @@ int flash3_attention_fwd(Dataflow_Handle * dataflow_handle, int stream_id, Op * 
 	void * attn_workspace = *((void **) op_args[16]);
 
 	int ret = flash3_fwd_wrapper(stream, arch, sm_count,
+									flash_dtype_as_int,
 									num_seqs, total_q, total_k,
 									cum_q_seqlens, max_seqlen_q,
 									k_seqlens, max_seqlen_k,
-									flash_dtype_as_int,
 									num_q_heads, num_kv_heads, head_dim,
 									x_q, x_k, x_v,
 									x_attn_out, softmax_lse,
