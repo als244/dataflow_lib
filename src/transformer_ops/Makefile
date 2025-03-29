@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -fPIC
+CFLAGS = -g -fPIC
 
 
 PROJ_INCLUDE_DIR = ../../include

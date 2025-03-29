@@ -157,7 +157,11 @@ void run_mha_fwd(Flash_fwd_params &params, cudaStream_t stream) {
     });
 
     if (params.num_splits > 1){
-        run_mha_fwd_combine(params, stream, true);
+        bool enable_pdl = false;
+        if (params.arch >= 90){
+            enable_pdl = true;
+        }
+        run_mha_fwd_combine(params, stream, enable_pdl);
     }
 
     
@@ -416,6 +420,7 @@ extern "C" {
 
 
         params.tile_count_semaphore = NULL;
+        
         // reset back to null now
         params.num_splits_dynamic_ptr = NULL;
         
@@ -441,8 +446,7 @@ extern "C" {
             }
         }
 
-        // Not sure what to do about this...
-        params.skip_scheduler_metadata_computation = false;
+        
 
         // copying from Original source...
         if (params.num_splits_dynamic_ptr){
@@ -454,6 +458,10 @@ extern "C" {
             prepare_varlen_num_blocks(params, stream, params.pack_gqa, kBlockM, kBlockN, false /*enable_pdl*/);
             CHECK_CUDA_KERNEL_LAUNCH();
         }
+
+
+        // ^ did sched metadata above
+        params.skip_scheduler_metadata_computation = true;
 
         // Also calls combine at end of function if 
         // num_splits > 1
