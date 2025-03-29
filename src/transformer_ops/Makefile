@@ -11,7 +11,7 @@ TABLE_INCLUDE_DIR = ../table/include
 FINGERPRINT_INCLUDE_DIR = ../fingerprint/include
 SET_OPS_INCLUDE_DIR = ../set_ops/include
 
-TRANSFORMER_OP_OBJS = objs/matmul_op.o objs/norm_ops.o objs/attn_misc_ops.o objs/mlp_misc_ops.o objs/loss_misc_ops.o 
+TRANSFORMER_OP_OBJS = objs/matmul_op.o objs/attention_op.o objs/norm_ops.o objs/attn_misc_ops.o objs/mlp_misc_ops.o objs/loss_misc_ops.o 
 
 TRANSFORMER_OP_LIB = lib/libtransformerops.so
 TRANSFORMER_OP_LIB_DEPENDS = -lcrypto -pthread
