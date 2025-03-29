@@ -68,7 +68,7 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 	op_args[13] = &x_v;
 	op_args[14] = &x_attn_out;
 	op_args[15] = &softmax_lse;
-	op_args[17] = &attn_workspace;
+	op_args[16] = &attn_workspace;
 
 	ret = (handle -> submit_op)(handle, &attention_op, stream_id);
 	if (ret){
