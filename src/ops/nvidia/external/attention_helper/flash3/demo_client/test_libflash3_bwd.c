@@ -578,7 +578,7 @@ int main (int argc, char * argv[]){
 	int ret;
 
 	if (argc != 3){
-		fprintf(stderr, "Error Usage: ./test_libflash3 <num_seqs> <seq_len>\n");
+		fprintf(stderr, "Error Usage: ./test_libflash3_bwd <num_seqs> <seq_len>\n");
 		return -1;
 	}	
 
