@@ -191,7 +191,7 @@ extern "C" {
     
     // Note: must have already called set_flash3_fwd_params()
     //   (or set fully yourself)
-    int set_flash3_fwd_workspace(Flash_fwd_params params,
+    int set_flash3_fwd_workspace(Flash_fwd_params &params,
                                     void * attn_workspace,
                                     uint64_t * ret_used_workspace_size){
 
@@ -288,7 +288,7 @@ extern "C" {
 
     // Note: must have already called set_flash3_fwd_params()
     //   (or set fully yourself)
-    int set_flash3_bwd_workspace(Flash_bwd_params params,
+    int set_flash3_bwd_workspace(Flash_bwd_params &params,
                                     void * attn_bwd_workspace,
                                     uint64_t * ret_used_workspace_size){
 
@@ -422,7 +422,7 @@ extern "C" {
         return 0;
     }
 
-    int set_flash3_fwd_params(Flash_fwd_params params,
+    int set_flash3_fwd_params(Flash_fwd_params &params,
                         int arch, int num_sm,
                         int flash_dtype_as_int,
                         int num_seqs, int total_q, int total_k,
@@ -688,7 +688,7 @@ extern "C" {
 
         // ensure valid datatype...
         DataflowDatatype flash_dt = (DataflowDatatype) flash_dtype_as_int;
-        if ((flash_dt != DATAFLOW_FP16) || (flash_dt != DATAFLOW_BF16)){
+        if ((flash_dt != DATAFLOW_FP16) && (flash_dt != DATAFLOW_BF16)){
            fprintf(stderr, "Error: flash3 bwd only supports FP16 or BF16 bwds...\n");
            return -1;
         }

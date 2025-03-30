@@ -267,8 +267,6 @@ extern "C" {
 
     // attn_bwd_workspace:
 
-    // attn_workspace + ...
-
     /*
 
     int const head_size_rounded = round_up_headdim(head_size);
