@@ -20,7 +20,7 @@ CUDA_LIB_DEPENDS = -lcuda -lcublasLt
 
 
 MATMUL_HELPER_SRC = src/matmul_helper.c
-MATMUL_HELPER_OBJ_DEPENDS = ../../../../datatype/objs/solo_conversion.o
+MATMUL_HELPER_OBJ_DEPENDS = ../../../../datatype/objs/dataflow_datatype.o ../../../../datatype/objs/solo_conversion.o
 
 all: ${MATMUL_HELPER_LIB}
 
