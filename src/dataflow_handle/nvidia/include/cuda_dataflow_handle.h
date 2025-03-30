@@ -7,6 +7,11 @@
 
 #define CUDA_DEFAULT_STREAM_PRIO 0
 
+// when querying max threads per multiprocessor, 
+// some devices return value of 1536, but then fail to 
+// launch kernels because 1024 is true upper bound...!
+#define CUDA_DEV_UPPER_BOUND_MAX_THREADS_ALL_FUNC 1024
+
 typedef struct cuda_device_info {
 	size_t total_mem;
 	int arch_num;

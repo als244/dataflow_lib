@@ -463,6 +463,11 @@ int cuda_set_device_info(Cuda_Device_Info * device_info, CUdevice dev){
 		return -1;
 	}
 
+	if (device_info -> max_threads_per_block > CUDA_DEV_UPPER_BOUND_MAX_THREADS_ALL_FUNC){
+		device_info -> max_threads_per_block = CUDA_DEV_UPPER_BOUND_MAX_THREADS_ALL_FUNC;
+	}
+
+
 	ret = cu_get_dev_attribute(&(device_info -> max_smem_per_block), dev, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK);
 	if (ret){
 		fprintf(stderr, "Error: failed to get max smem per block when setting device info...\n");
