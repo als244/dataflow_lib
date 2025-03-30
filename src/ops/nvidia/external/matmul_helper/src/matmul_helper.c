@@ -19,7 +19,7 @@ typedef struct cublas_matmul_params {
 	void * C;
 	cublasLtMatrixLayout_t Cdesc;
 	void * D;
-	bool same_dDesc;
+	bool same_cDesc;
 	cublasLtMatrixLayout_t Ddesc;
 	cublasLtMatmulPreference_t pref;
 	cublasLtMatmulHeuristicResult_t heuristicResultsArray[MAX_ALGO_SEARCH];
@@ -260,16 +260,16 @@ static int destroy_matmul_params(Cublas_Matmul_Params * matmul_params){
 		}
 	}
 
-	if (matmul_params -> Cdesc){
-		status = cublasLtMatrixLayoutDestroy(matmul_params -> Cdesc);
+	if (matmul_params -> Ddesc){
+		status = cublasLtMatrixLayoutDestroy(matmul_params -> Ddesc);
 		if (status != CUBLAS_STATUS_SUCCESS){
 			fprintf(stderr, "Error: could not destroy Adesc...\n");
 			return -1;
 		}
 	}
 
-	if ((matmul_params -> Ddesc) && (!(matmul_params -> same_dDesc))) {
-		status = cublasLtMatrixLayoutDestroy(matmul_params -> Ddesc);
+	if ((matmul_params -> Cdesc) && (!(matmul_params -> same_cDesc))) {
+		status = cublasLtMatrixLayoutDestroy(matmul_params -> Cdesc);
 		if (status != CUBLAS_STATUS_SUCCESS){
 			fprintf(stderr, "Error: could not destroy Ddesc...\n");
 			return -1;
@@ -287,12 +287,18 @@ static int destroy_matmul_params(Cublas_Matmul_Params * matmul_params){
 	return 0;
 }
 
-// ASSUMING UNDERLYING STORAGE IS ROW-MAJOR!
+// ASSUMING UNDERLYING STORAGE IS ROW-MAJOR for A, C, D
+// AND COL-MAJOR for B!
 static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * op, cublasLtHandle_t cublas_handle){
 
 	int ret;
 
 	cublasStatus_t status;
+
+	cudaDataType a_cuda_dt;
+	cudaDataType b_cuda_dt;
+	cudaDataType c_cuda_dt;
+	cudaDataType d_cuda_dt;
 
 	void ** op_args = op -> op_args;
 
@@ -302,17 +308,21 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	DataflowDatatype c_dt = *((DataflowDatatype *) op_args[2]);
 	DataflowDatatype d_dt = *((DataflowDatatype *) op_args[3]);
 
-	cudaDataType a_cuda_dt;
-	cudaDataType b_cuda_dt;
-	cudaDataType c_cuda_dt;
-	cudaDataType d_cuda_dt;
+	void * A = (void *) *((uint64_t *) op_args[12]);
+	void * B = (void *) *((uint64_t *) op_args[13]);
+	void * C = (void *) *((uint64_t *) op_args[14]);
+	void * D = (void *) *((uint64_t *) op_args[15]);
+
+	matmul_params -> alpha_f = *((float *) op_args[8]);
+	matmul_params -> beta_f = *((float *) op_args[9]);
+
 
 	// NOTE:
-	// We assume underlying storage is Row-Major and we are required to use "TN" format
+	// We assume underlying storage is Row-Major for A, C, D and Col-Major for B.
+	// We are required to use "TN" format (to use FP8 tensor cores)
+
 	// This means that from cuBLAS perspective (which assumes col-major) we can reverse the
 	// ordering of A and B matrices such that we will compute C^T = B^T * A^T
-
-
 
 	ret = dtype_to_cuda_dtype(b_dt, &a_cuda_dt);
 	if (ret){
@@ -326,25 +336,29 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	ret = dtype_to_cuda_dtype(c_dt, &c_cuda_dt);
+	ret = dtype_to_cuda_dtype(d_dt, &d_cuda_dt);
 	if (ret){
-		fprintf(stderr, "Error: unsupported C dtype of %s\n", dataflow_datatype_as_string(c_dt));
+		fprintf(stderr, "Error: unsupported D dtype of %s\n", dataflow_datatype_as_string(c_dt));
 		return -1;
 	}
 
-	if (d_dt == DATAFLOW_NONE){
-		d_cuda_dt = c_cuda_dt;
+	if ((c_dt == DATAFLOW_NONE) || (!C) || (matmul_params -> beta_f == 0)) {
+		if ((a_dt == DATAFLOW_FP8E4M3) || (a_dt == DATAFLOW_FP8E5M2)){
+			c_cuda_dt = CUDA_R_16F;
+		}
+		else {
+			c_cuda_dt = d_cuda_dt;
+		}
 	}
 	else{
-		ret = dtype_to_cuda_dtype(d_dt, &d_cuda_dt);
+		ret = dtype_to_cuda_dtype(c_dt, &c_cuda_dt);
 		if (ret){
-			fprintf(stderr, "Error: unsupported D dtype of %s\n", dataflow_datatype_as_string(d_dt));
+			fprintf(stderr, "Error: unsupported C dtype of %s\n", dataflow_datatype_as_string(d_dt));
 			return -1;
 		}
 	}
 
 	DataflowDatatype compute_dt = *((DataflowDatatype *) op_args[4]);
-
 
 	cudaDataType scale_cuda_dt;
 	cublasComputeType_t cublas_compute_type;
@@ -361,7 +375,15 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	
+	int num_sms = *((int *) op_args[16]);
+
+	if (num_sms > 0){
+		status = cublasLtMatmulDescSetAttribute(matmul_params -> computeDesc, CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET, &num_sms, sizeof(num_sms));
+		if (status != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "Error: matmul desc sm count attribute could not be set\n");
+			return -1;
+		}
+	}
 
 	cublasOperation_t transa = CUBLAS_OP_T;
 	cublasOperation_t transb = CUBLAS_OP_N;
@@ -382,6 +404,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	int K = *((int *) op_args[6]);
 	int N = *((int *) op_args[7]);
 
+
 	// Now Adesc actually referes the B matrix. a_cuda_dt has already been set appropriately
 
 	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Adesc), a_cuda_dt, K, N, K);
@@ -397,28 +420,35 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, N, M, N);
+	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Ddesc), d_cuda_dt, N, M, N);
 	if (status != CUBLAS_STATUS_SUCCESS) {
 		fprintf(stderr, "Error: Cdesc matmul layout could not be created\n");
 		return -1;
 	}
 
-	if (d_dt == DATAFLOW_NONE){
-		matmul_params -> same_dDesc = true;
-		memcpy(&(matmul_params -> Ddesc), &(matmul_params -> Cdesc), sizeof(cublasLtMatrixLayout_t));
+	if ((c_dt == DATAFLOW_NONE) || (!C) || (matmul_params -> beta_f == 0)){
+		if ((a_dt == DATAFLOW_FP8E4M3) || (a_dt == DATAFLOW_FP8E5M2)){
+			matmul_params -> same_cDesc = false;
+			status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, N, M, N);
+               		if (status != CUBLAS_STATUS_SUCCESS) {
+                        	fprintf(stderr, "Error: Ddesc matmul layout could not be created\n");
+                        	return -1;
+                	}
+		}
+		else{
+			matmul_params -> same_cDesc = true;
+			memcpy(&(matmul_params -> Cdesc), &(matmul_params -> Ddesc), sizeof(cublasLtMatrixLayout_t));
+		}
 	}
 	else{
-		matmul_params -> same_dDesc = false;
-		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Ddesc), d_cuda_dt, N, M, N);
+		matmul_params -> same_cDesc = false;
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, N, M, N);
 		if (status != CUBLAS_STATUS_SUCCESS) {
 			fprintf(stderr, "Error: Ddesc matmul layout could not be created\n");
 			return -1;
 		}
 	}
 
-
-	matmul_params -> alpha_f = *((float *) op_args[8]);
-	matmul_params -> beta_f = *((float *) op_args[9]);
 
 	if (scale_cuda_dt == CUDA_R_16F){
 		matmul_params -> alpha_h = solo_fp32_to_fp16(matmul_params -> alpha_f);
@@ -462,16 +492,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	void * A = (void *) *((uint64_t *) op_args[12]);
-	void * B = (void *) *((uint64_t *) op_args[13]);
-	void * C = (void *) *((uint64_t *) op_args[14]);
-	void * D;
-
-	if (d_dt == DATAFLOW_NONE){
-		D = C;
-	}
-	else{
-		D = (void *) *((uint64_t *) op_args[15]);
+	if ((c_dt == DATAFLOW_NONE)|| (!C) || (matmul_params -> beta_f == 0)) {
+		C = D;
 	}
 
 	// Ensure A and B are swapped
@@ -484,6 +506,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	return 0;
 
 }
+
+
 
 
 

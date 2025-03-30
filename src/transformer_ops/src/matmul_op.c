@@ -13,7 +13,8 @@ int submit_matmul(Dataflow_Handle * handle, int stream_id,
 					int M, int K, int N,
 					float alpha, float beta,
 					uint64_t workspaceBytes, void * workspace,
-					void * A, void * B, void * C, void * D) {
+					void * A, void * B, void * C, void * D,
+					int num_sms) {
 
 
 	int ret;
@@ -40,6 +41,7 @@ int submit_matmul(Dataflow_Handle * handle, int stream_id,
 	op_args[13] = &B;
 	op_args[14] = &C;
 	op_args[15] = &D;
+	op_args[16] = &num_sms;
 
 	ret = (handle -> submit_op)(handle, &matmul_op, stream_id);
 	if (ret){
