@@ -384,8 +384,12 @@ int main(int argc, char * argv[]){
 	void * d_ffn_norm_weighted_sums = d_attn_softmax_lse + softmax_lse_size;
 	void * d_ffn_norm_rms_vals = d_ffn_norm_weighted_sums + weighted_sums_size;
 
+	// In order to use tensor cores all matrices must have 256-byte alignment...
+	int dev_alignment = 256;
 
-	void * d_orig_x = d_ffn_norm_rms_vals + rms_vals_size;
+	int align_spacer = dev_alignment - (((uint64_t) (d_ffn_norm_rms_vals + rms_vals_size)) % dev_alignment);
+
+	void * d_orig_x = d_ffn_norm_rms_vals + rms_vals_size + align_spacer;
 
 	void * d_attn_norm_out = d_orig_x + x_size;
 
