@@ -72,6 +72,8 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	// Llama 70B dimensions, taking example input after embedding stage and weights are loaded 
+	// as first layer
 
 	int num_q_heads = 64;
 	int num_kv_heads = 8;
