@@ -371,7 +371,7 @@ int main(int argc, char * argv[]){
 	void * d_w2 = d_w1 + w1_size;
 	void * d_w3 = d_w2 + w2_size;
 
-	void * d_cum_seqlens_q = w3 + w3_size;
+	void * d_cum_seqlens_q = d_w3 + w3_size;
 	void * d_seqlens_kv = d_cum_seqlens_q + cum_seqlens_q_size;
 
 	void * d_seq_positions = d_seqlens_kv + seqlens_kv_size;
@@ -724,7 +724,7 @@ int main(int argc, char * argv[]){
 	// ATTENTION BLOCK!
 
 	// Attn Norm...
-	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, attn_norm_out, d_attn_norm_out, attn_norm_size);
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, attn_norm_out, d_attn_norm_out, x_size);
 	if (ret){
 		fprintf(stderr, "Error: could not submit outbound transfer for attn_norm_out...\n");
 		return -1;
@@ -791,7 +791,7 @@ int main(int argc, char * argv[]){
 
 
 	// FFN Norm...
-	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, ffn_norm_out, d_ffn_norm_out, ffn_norm_size);
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, ffn_norm_out, d_ffn_norm_out, x_size);
 	if (ret){
 		fprintf(stderr, "Error: could not submit outbound transfer for ffn_norm_out...\n");
 		return -1;
