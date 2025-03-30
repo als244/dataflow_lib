@@ -352,7 +352,7 @@ extern "C" {
         params.dv = head_dim;
         params.dv_rounded = head_dim_rounded;
 
-        params.scale_softmax = 1.0 / sqrtf((float) model_dim);
+        params.scale_softmax = 1.0 / sqrtf((float) head_dim);
         params.softcap = 0.0f;
 
         params.p_dropout = 1.0f;
