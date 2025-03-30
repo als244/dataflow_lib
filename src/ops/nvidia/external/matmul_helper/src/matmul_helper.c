@@ -338,7 +338,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 
 	ret = dtype_to_cuda_dtype(d_dt, &d_cuda_dt);
 	if (ret){
-		fprintf(stderr, "Error: unsupported D dtype of %s\n", dataflow_datatype_as_string(c_dt));
+		fprintf(stderr, "Error: unsupported D dtype of %s\n", dataflow_datatype_as_string(d_dt));
 		return -1;
 	}
 
@@ -353,7 +353,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	else{
 		ret = dtype_to_cuda_dtype(c_dt, &c_cuda_dt);
 		if (ret){
-			fprintf(stderr, "Error: unsupported C dtype of %s\n", dataflow_datatype_as_string(d_dt));
+			fprintf(stderr, "Error: unsupported C dtype of %s\n", dataflow_datatype_as_string(c_dt));
 			return -1;
 		}
 	}
