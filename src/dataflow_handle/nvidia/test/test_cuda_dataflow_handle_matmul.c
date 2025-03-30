@@ -80,8 +80,7 @@ int main(int argc, char * argv[]){
 
 	DataflowDatatype a_dt = DATAFLOW_FP16;
 	DataflowDatatype b_dt = DATAFLOW_FP16;
-	DataflowDatatype c_dt = DATAFLOW_FP16;
-	DataflowDatatype d_dt = DATAFLOW_NONE;
+	DataflowDatatype d_dt = DATAFLOW_FP16;
 
 	DataflowDatatype compute_dt = DATAFLOW_FP16;
 
@@ -92,15 +91,15 @@ int main(int argc, char * argv[]){
 
 	size_t a_el_size = dataflow_sizeof_element(a_dt);
 	size_t b_el_size = dataflow_sizeof_element(b_dt);
-	size_t c_el_size = dataflow_sizeof_element(c_dt);
+	size_t d_el_size = dataflow_sizeof_element(d_dt);
 
 	uint64_t a_mat_size = K * M * a_el_size;
 	uint64_t b_mat_size = K * N * b_el_size;
-	uint64_t c_mat_size = N * N * c_el_size;
+	uint64_t d_mat_size = N * N * d_el_size;
 
 	void * a_matrix = host_mem;
 	void * b_matrix = a_matrix + a_mat_size;
-	void * c_matrix = b_matrix + b_mat_size;
+	void * d_matrix = b_matrix + b_mat_size;
 
 	printf("Creating random A & B host matrices (M: %lu, K: %lu, N: %lu, dt: %s)...\n", M, K, N, dataflow_datatype_as_string(a_dt));
 
@@ -162,11 +161,11 @@ int main(int argc, char * argv[]){
 
 	void * d_a_matrix = dev_mem;
 	void * d_b_matrix = d_a_matrix + a_mat_size;
-	void * d_c_matrix = d_b_matrix + b_mat_size;
+	void * d_d_matrix = d_b_matrix + b_mat_size;
 	// need to start at multiple of 256...
-	uint64_t init_workspace_start = (uint64_t) (d_c_matrix + c_mat_size);
+	uint64_t init_workspace_start = (uint64_t) (d_d_matrix + d_mat_size);
 	uint64_t remain = init_workspace_start % 256;
-	void * d_workspace = d_c_matrix + c_mat_size + (256 - remain);
+	void * d_workspace = d_d_matrix + d_mat_size + (256 - remain);
 
 	printf("Transferring A, B matrix on host to device of size: %lu and %lu...\n", a_mat_size, b_mat_size);
 
@@ -203,12 +202,13 @@ int main(int argc, char * argv[]){
 	printf("Submitting matmul op...!\n");
 
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a,
-						 a_dt, b_dt, c_dt, d_dt, 
+						 a_dt, b_dt, DATAFLOW_NONE, d_dt, 
 						 compute_dt,
 						 iM, iK, iN,
 						 alpha, beta,
 						 workspaceBytes, d_workspace,
-						 d_a_matrix, d_b_matrix, d_c_matrix, NULL);
+						 d_a_matrix, d_b_matrix, NULL, d_d_matrix,
+						 0);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit matmul...\n");
 		return -1;
@@ -231,7 +231,7 @@ int main(int argc, char * argv[]){
 
 	printf("Submitting outbound transfer...\n");
 
-	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, c_matrix, d_c_matrix, c_mat_size);
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, d_matrix, d_d_matrix, d_mat_size);
 	if (ret){
 		fprintf(stderr, "Error: could not submit outbound transfer...\n");
 		return -1;
@@ -249,9 +249,9 @@ int main(int argc, char * argv[]){
 
 	printf("Saving transformed matrix...\n");
 
-	char * c_matrix_filename = "test_matmul/C_matrix.dat";
+	char * d_matrix_filename = "test_matmul/D_matrix.dat";
 
-	ret = save_host_matrix(c_matrix_filename, c_matrix, M, N, c_dt);
+	ret = save_host_matrix(d_matrix_filename, d_matrix, M, N, d_dt);
 	if (ret){
 		fprintf(stderr, "Error: failed to save output matrix...\n");
 		return -1;
