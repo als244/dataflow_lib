@@ -22,5 +22,5 @@ test_libflash3: test_libflash3.c
 	${CC} ${C_FLAGS} ${ALL_INCLUDES} $^ -o $@ ${ALL_LIBS}
 
 clean:
-	rm test_libflash3
+	rm -f test_libflash3
 

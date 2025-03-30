@@ -162,7 +162,7 @@ int get_dev_info(int device_id, int * arch, int * num_sms){
 
 int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes, 
 				int num_q_heads, int num_kv_heads, int head_dim, 
-				void ** cu_seqlens_q, void ** seqlens_k, 
+				void ** cu_seqlens_q, void ** cu_seqlens_k, 
 				void ** x_q, void  ** x_k, void ** x_v, 
 				void ** x_attn_out, void ** softmax_lse, 
 				void ** attn_workspace){
@@ -172,14 +172,14 @@ int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes
 
 	int seqlen_size = (num_seqs + 1) * sizeof(int);
 
-	result = cuMemAlloc((CUdeviceptr *) cu_seqlens_q, (num_seqs + 1) * sizeof(int));
+	result = cuMemAlloc((CUdeviceptr *) cu_seqlens_q, seqlen_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
     	fprintf(stderr, "Error: Could not allocate cu_seqlens_q on device: %s\n", err);
     	return -1;
 	}
 
-	result = cuMemAlloc((CUdeviceptr *) seqlens_k, (num_seqs * sizeof(int)));
+	result = cuMemAlloc((CUdeviceptr *) cu_seqlens_k, seqlen_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
     	fprintf(stderr, "Error: Could not allocate seqlens_k on device: %s\n", err);
@@ -328,26 +328,26 @@ int load_from_file_to_dev(char * filepath, size_t size_bytes, void * dev_ptr){
 }
 
 
-int load_and_copy_sample_inputs(char * data_dir, int num_seqs, int total_q, int total_k, int model_dim, int kv_dim, int dtype_size, void * cu_seqlens_q, void * seqlens_k, void * x_q, void  * x_k, void * x_v){
+int load_and_copy_sample_inputs(char * data_dir, int num_seqs, int total_q, int total_k, int model_dim, int kv_dim, int dtype_size, void * cu_seqlens_q, void * cu_seqlens_k, void * x_q, void  * x_k, void * x_v){
 
 	
 	char * exts[5];
        	exts[0]	= "cu_seqlens_q.dat";
-       	exts[1] = "seqlens_k.dat";
+       	exts[1] = "cu_seqlens_k.dat";
        	exts[2] = "x_q.dat";
 	exts[3] = "x_k.dat";
 	exts[4] = "x_v.dat";
 
 	size_t sizes[5];
 	sizes[0] = (num_seqs + 1) * sizeof(int);
-	sizes[1] = (num_seqs) * sizeof(int);
+	sizes[1] = (num_seqs + 1) * sizeof(int);
 	sizes[2] = (total_q * model_dim * dtype_size);
 	sizes[3] = (total_k * kv_dim * dtype_size);
 	sizes[4] = (total_k * kv_dim * dtype_size);
 
 	void * dev_ptrs[5];
 	dev_ptrs[0] = cu_seqlens_q;
-	dev_ptrs[1] = seqlens_k;
+	dev_ptrs[1] = cu_seqlens_k;
 	dev_ptrs[2] = x_q;
 	dev_ptrs[3] = x_k;
 	dev_ptrs[4] = x_v;
@@ -508,7 +508,7 @@ int main (int argc, char * argv[]){
 	//int total_q = num_seqs * seq_len;
 	
 	// testing with last sequence only having last query
-	int total_q = (num_seqs - 1) * seq_len + 1;
+	int total_q = num_seqs * seq_len;
 
 	int total_k = num_seqs * seq_len;
 
@@ -525,7 +525,7 @@ int main (int argc, char * argv[]){
 	int head_dim = 128;	
 
 	void * cu_seqlens_q;
-	void * seqlens_k;
+	void * cu_seqlens_k;
 	void * x_q;
 	void * x_k;
 	void * x_v;
@@ -535,7 +535,7 @@ int main (int argc, char * argv[]){
 
 	ret = reserve_dev_memory(total_q, total_k, num_seqs, x_dt_bytes, 
 					num_q_heads, num_kv_heads, head_dim, 
-					&cu_seqlens_q, &seqlens_k,
+					&cu_seqlens_q, &cu_seqlens_k,
 					&x_q, &x_k, &x_v, 
 					&x_attn_out, &softmax_lse, 
 					&attn_workspace);
@@ -549,7 +549,7 @@ int main (int argc, char * argv[]){
 	int kv_dim = head_dim * num_kv_heads;
 
 
-	ret = load_and_copy_sample_inputs(data_dir, num_seqs, total_q, total_k, model_dim, kv_dim, x_dt_bytes, cu_seqlens_q, seqlens_k, x_q, x_k, x_v);
+	ret = load_and_copy_sample_inputs(data_dir, num_seqs, total_q, total_k, model_dim, kv_dim, x_dt_bytes, cu_seqlens_q, cu_seqlens_k, x_q, x_k, x_v);
 	if (ret){
 		fprintf(stderr, "Error: could not load and copy sample inputs...\n");
 		return -1;
@@ -570,10 +570,10 @@ int main (int argc, char * argv[]){
 	for (int i = 0; i < 1; i++) {
 		printf("Iter: %d\n", i);
 		flash3_fwd_wrapper(stream, arch, num_sms,
+					(int) flash_dtype, 
 					num_seqs, total_q, total_k,
 					cu_seqlens_q, max_seqlen_q,
-					seqlens_k, max_seqlen_k,
-					(int) flash_dtype, 
+					cu_seqlens_k, max_seqlen_k,
 					num_q_heads, num_kv_heads, head_dim,
 					x_q, x_k, x_v, 
 					x_attn_out, softmax_lse,  

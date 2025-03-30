@@ -100,7 +100,7 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	arg_dtypes[4] = DATAFLOW_INT;
 	// max_seqlen_q
 	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
-	// k_seqlens
+	// cum_k_seqlens
 	arg_dtypes[6] = DATAFLOW_INT;
 	// max_seqlen_k
 	
@@ -135,9 +135,6 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	do_fingerprinting(skeleton_header, sizeof(Op_Skeleton_Header), (skeleton -> identifier).fingerprint, OP_IDENTIFIER_FINGERPRINT_TYPE);
 }
 
-
-// TODO:
-
 void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 
 	Op_Skeleton_Header * skeleton_header = &(skeleton -> header);
@@ -152,7 +149,7 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	int num_args = 17;
+	int num_args = 21;
 
 	skeleton_header -> num_args = num_args;
 
@@ -171,7 +168,7 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	arg_dtypes[4] = DATAFLOW_INT;
 	// max_seqlen_q
 	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
-	// k_seqlens
+	// cum_k_seqlens
 	arg_dtypes[6] = DATAFLOW_INT;
 	// max_seqlen_k
 	
@@ -196,8 +193,18 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	// softmax_lse
 	arg_dtypes[15] = DATAFLOW_VOID;
 
-	// attn_workspace
+	// dx_out (upstream gradient)
 	arg_dtypes[16] = DATAFLOW_VOID;
+
+	// dx_q
+	arg_dtypes[17] = DATAFLOW_VOID;
+	// dx_k
+	arg_dtypes[18] = DATAFLOW_VOID;
+	// dx_v
+	arg_dtypes[19] = DATAFLOW_VOID;
+
+	// attn_bwd_workspace
+	arg_dtypes[20] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;

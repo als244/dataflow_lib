@@ -62,13 +62,28 @@ int flash3_attention_fwd(Dataflow_Handle * dataflow_handle, int stream_id, Op * 
                         int flash_dtype_as_int,
                         int num_seqs, int total_q, int total_k,
                         int * cum_q_seqlens, int max_seqlen_q,
-                        int * k_seqlens, int max_seqlen_k,
+                        int * cum_k_seqlens, int max_seqlen_k,
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
                         void * x_attn_out, void * softmax_lse,
                         void * attn_workspace) */
 
 int flash3_attention_bwd(Dataflow_Handle * dataflow_handle, int stream_id, Op * op, void * op_extra);
+
+
+/*
+int flash3_bwd_wrapper(CUstream stream, int arch, int num_sm,
+                            int flash_dtype_as_int, 
+                            int num_seqs, int total_q, int total_k, 
+                            int * cum_q_seqlens, int max_seqlen_q,
+                            int * cum_k_seqlens, int max_seqlen_k,
+                            int num_q_heads, int num_kv_heads, int head_dim, 
+                            void * x_q, void * x_k, void * x_v, 
+                            void * x_attn_out, void * softmax_lse, 
+                            void * dx_out, 
+                            void * dx_q, void * dx_k, void * dx_v,
+                            void * attn_bwd_workspace);
+*/
 
 
 #endif

@@ -189,39 +189,251 @@ void run_mha_bwd(Flash_bwd_params &params, cudaStream_t stream) {
 
 extern "C" {
     
-    // if TYPE FP8, output must be BF16
-    
-    // To compute required size of attn_workspace:
+    // Note: must have already called set_flash3_fwd_params()
+    //   (or set fully yourself)
+    int set_flash3_fwd_workspace(Flash_fwd_params params,
+                                    void * attn_workspace,
+                                    uint64_t * ret_used_workspace_size){
 
-    // attn_workspace_size = 0
 
-    // Occum and LSE accum:
-    // If num_splits > 1:
-    //      attn_workspace_size += num_splits * sizeof(float) * num_q_heads * total_q * (1 + head_dim)
-    
-    // Tile count sem: 
-    // If arch >= 90 || num_splits > 1:
-    //      attn_workspace_size += sizeof(int)
+        int total_q = params.total_q;
+        int head_dim = params.d;
+        int num_q_heads = params.h;
 
-    // Dynamic split ptr for each seq:
-    // If num_seqs <= 992:
-    //      attn_workspace_size += num_seqs * sizeof(int)
+        int model_dim = head_dim * num_q_heads;
 
-    int flash3_fwd_wrapper(CUstream stream, int arch, int num_sm,
+        uint64_t used_workspace_size = 0;
+
+        void * cur_attn_workspace = attn_workspace;
+
+        // FOLLOWING WHAT WAS DONE IN ORGINAL SOURCE...
+
+        params.num_splits_dynamic_ptr = (int *) 1;
+
+        int num_splits = get_num_splits(params);
+        params.num_splits = num_splits;
+        
+        if (params.num_splits > 1){
+            
+            // (num_splits, num_heads, total_q, headdim)
+            params.oaccum_ptr = (float *) cur_attn_workspace;
+            cur_attn_workspace += (num_splits * num_q_heads * total_q * head_dim * sizeof(float));
+            used_workspace_size += (num_splits * num_q_heads * total_q * head_dim * sizeof(float));
+            
+            params.oaccum_split_stride = params.num_splits;
+            params.oaccum_row_stride = model_dim;
+            params.oaccum_head_stride = head_dim;
+
+            // (num_splits, num_heads, total_q)
+            params.softmax_lseaccum_ptr = (float *) cur_attn_workspace;
+            cur_attn_workspace += (num_splits * num_q_heads * total_q * sizeof(float));
+            used_workspace_size += (num_splits * num_q_heads * total_q * sizeof(float));
+            params.lseaccum_split_stride = params.num_splits;
+            params.lseaccum_head_stride = head_dim;
+        }
+
+        
+        params.pack_gqa = get_pack_gqa(params);
+
+        int to_use_dynamic_split = 0;
+
+        // Harcoded number from original source
+        if (params.b <= 992){
+            to_use_dynamic_split = 1;
+        } 
+
+        int needs_sem = 0;
+        if ((params.arch >= 90) || (params.num_splits > 1)){
+            needs_sem = 1;
+        }
+
+
+        params.tile_count_semaphore = NULL;
+        
+        // reset back to null now
+        params.num_splits_dynamic_ptr = NULL;
+        
+        if ((needs_sem) || (to_use_dynamic_split)) {
+            if (needs_sem){
+                if (!to_use_dynamic_split){
+                    // ensure tile count semaphore set to zero
+                    // should happen before call to this function
+                }
+                // only 1 int
+                params.tile_count_semaphore = (int *) cur_attn_workspace;
+                cur_attn_workspace += sizeof(int);
+                used_workspace_size += sizeof(int);
+            }
+
+            if (to_use_dynamic_split){
+                // need params.b integers here or params.b - 1..?
+                // is this +1 a bug if the sched doesn't need sem...?
+                // they initialzed buffer as needs_sem + use_dynamic * params.b
+                // assuming bug...
+                // params.num_splits_dynamic_ptr = ((int *) cur_attn_workspace + 1);
+                params.num_splits_dynamic_ptr = (int *) cur_attn_workspace;
+                cur_attn_workspace += params.b * sizeof(int);
+                used_workspace_size += params.b * sizeof(int);
+            }
+        }
+
+
+        if (ret_used_workspace_size){
+            *ret_used_workspace_size = used_workspace_size;
+        }
+
+        return 0;
+    }
+
+
+    // Note: must have already called set_flash3_fwd_params()
+    //   (or set fully yourself)
+    int set_flash3_bwd_workspace(Flash_bwd_params params,
+                                    void * attn_bwd_workspace,
+                                    uint64_t * ret_used_workspace_size){
+
+
+       
+
+        uint64_t used_workspace_size = 0;
+
+        void * cur_attn_workspace = attn_bwd_workspace;
+
+        // FOLLOWING WHAT WAS DONE IN ORGINAL SOURCE...
+
+        int total_q = params.total_q;
+        int total_k = params.total_k;
+
+        int num_q_heads = params.h;
+        int num_kv_heads = params.h_k;
+
+        int num_seqs = params.b;
+
+        int seqlen_q = params.seqlen_q;
+        int seqlen_k = params.seqlen_k;
+
+
+        int arch = params.arch;
+        int is_causal = params.is_causal;
+        int is_local = params.is_local;
+        float softcap = params.softcap;
+
+        int const head_dim_rounded = params.d_rounded;
+
+        int const kBlockM_sm90 = head_dim_rounded <= 64 ? (is_causal && softcap > 0.0 ? 96 : 128)
+                                    : (head_dim_rounded <= 96 ? 64
+                                    : (head_dim_rounded <= 128 ? (is_causal || is_local || softcap > 0.0 ? 64 : 80)
+                                    : 64));
+        int const kBlockM_sm80 = head_dim_rounded <= 64 ? 128 : 64;
+        int const kBlockM_sm86 = head_dim_rounded <= 192 ? 64 : 32;
+        int const kBlockM = arch >= 90 ? kBlockM_sm90 : (arch == 86 || arch == 89 ? kBlockM_sm86 : kBlockM_sm80);
+        int const kBlockN_sm90 = head_dim_rounded <= 128 ? 128 : (head_dim_rounded <= 192 ? 96 : 80);
+        int const kBlockN_sm80 = head_dim_rounded <= 128 ? 128 : (head_dim_rounded <= 192 ? 80 : 64);
+        int const kBlockN_sm86 = head_dim_rounded <= 64 ? 128 : (head_dim_rounded <= 96 ? 128
+                                    : (head_dim_rounded <= 128 ? 96
+                                    : (head_dim_rounded <= 192 ? 64 : 64)));
+        int const kBlockN = arch >= 90 ? kBlockN_sm90 : (arch == 86 || arch == 89 ? kBlockN_sm86 : kBlockN_sm80);
+        auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
+        int const total_q_padded_rounded = round_multiple(total_q + num_seqs * kBlockM, kBlockM);
+        int const total_k_padded_rounded = round_multiple(total_k + num_seqs * kBlockN, kBlockN);
+
+
+        // Values to Set...
+
+        // - softmax_d: (num_q_heads, total_q_padded_rounded), dtype=float32
+        // - softmax_lse_log2: (num_q_heads, total_q_padded_rounded), dtype=float32
+
+        // - dq_accum: (num_q_heads, total_q_padded_rounded * head_dim_rounded), dtype=float32
+        
+        // if (num_q_heads != num_kv_heads):
+        //      - dk_accum: (num_kv_heads, total_k_padded_rounded, head_dim_rounded), dtype=float32
+        //      - dv_accum: (num_kv_heads, total_k_padded_rounded, head_dim_rounded), dtype=float32
+        
+
+        // - dq_semaphore: ( (max_seqlen_q + kBlockM - 1) / (kBlockM), num_seqs, num_q_heads), dtype=int32
+        // if (num_q_heads != num_kv_heads) & deterministic:
+        //      - dk_semaphore: (max_seqlen_k + kBlockN - 1) / kBlockN, num_seqs, num_heads_kv), dtype=int32
+        //      - dv_semaphore: (max_seqlen_k + kBlockN - 1) / kBlockN, num_seqs, num_heads_kv), dtype=int32
+
+
+
+        uint64_t softmax_size = num_q_heads * total_q_padded_rounded * sizeof(float);
+
+        params.dsoftmax_sum = cur_attn_workspace;
+
+        cur_attn_workspace += softmax_size;
+        used_workspace_size += softmax_size;
+
+        params.softmax_lse_log2_ptr = cur_attn_workspace;
+            
+        cur_attn_workspace += softmax_size;
+        used_workspace_size += softmax_size;
+
+        uint64_t dq_accum_size = num_q_heads * total_q_padded_rounded * head_dim_rounded * sizeof(float);
+        params.dq_accum_ptr = cur_attn_workspace;
+        cur_attn_workspace += dq_accum_size;
+        used_workspace_size += dq_accum_size;
+        
+
+        params.dk_accum_ptr = NULL;
+        params.dv_accum_ptr = NULL;
+        if (num_q_heads != num_kv_heads) {
+
+            uint64_t dkv_accum_size = num_kv_heads * total_k_padded_rounded * head_dim_rounded * sizeof(float);
+            params.dk_accum_ptr = cur_attn_workspace;
+
+            cur_attn_workspace += dkv_accum_size;
+            used_workspace_size += dkv_accum_size;
+
+            params.dv_accum_ptr = cur_attn_workspace;
+            cur_attn_workspace += dkv_accum_size;
+            used_workspace_size += dkv_accum_size;
+        }
+        
+
+        uint64_t dq_sem_size =  ((seqlen_q + kBlockM - 1) / (kBlockM)) * num_seqs * num_q_heads * sizeof(int);
+
+
+        params.dq_semaphore = (int *) cur_attn_workspace;
+        cur_attn_workspace += dq_sem_size;
+        used_workspace_size += dq_sem_size;
+        
+
+        params.dk_semaphore = NULL;
+        params.dv_semaphore = NULL;
+        if ((num_q_heads != num_kv_heads) && (params.deterministic)){
+
+            uint64_t dkv_sem_size = ((seqlen_k + kBlockN - 1) / kBlockN) * num_seqs * num_kv_heads * sizeof(int);
+
+            params.dk_semaphore = (int *) cur_attn_workspace;
+
+            cur_attn_workspace += dkv_sem_size;
+            used_workspace_size += dkv_sem_size;
+
+            params.dv_semaphore = (int *) cur_attn_workspace;
+            cur_attn_workspace += dkv_sem_size;
+            used_workspace_size += dkv_sem_size;
+        }
+        
+        if (ret_used_workspace_size){
+            *ret_used_workspace_size = used_workspace_size;
+        }
+
+        return 0;
+    }
+
+    int set_flash3_fwd_params(Flash_fwd_params params,
+                        int arch, int num_sm,
                         int flash_dtype_as_int,
                         int num_seqs, int total_q, int total_k,
                         int * cum_q_seqlens, int max_seqlen_q,
-                        int * k_seqlens, int max_seqlen_k,
+                        int * cum_k_seqlens, int max_seqlen_k,
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
-                        void * x_attn_out, void * softmax_lse,
-                        void * attn_workspace) {
+                        void * x_attn_out, void * softmax_lse) {
 
         int model_dim = num_q_heads * head_dim;
         int kv_dim = num_kv_heads * head_dim;
-
-        Flash_fwd_params params;
-        
 
         params.is_fp32 = false;
         params.is_bf16 = false;
@@ -276,13 +488,13 @@ extern "C" {
         params.v_dim_stride = 1;
 
         params.cu_seqlens_q = cum_q_seqlens;
-        params.cu_seqlens_k = NULL;
+        params.cu_seqlens_k = cum_k_seqlens;
         params.cu_seqlens_knew = NULL;
         params.leftpad_k = NULL;
 
 
         params.seqused_q = NULL;
-        params.seqused_k = k_seqlens;
+        params.seqused_k = NULL;
 
         params.knew_ptr = NULL;
         params.vnew_ptr = NULL;
@@ -376,77 +588,68 @@ extern "C" {
         params.arch = arch;
         params.num_sm = num_sm;
 
+        return 0;
+    }
 
-        void * cur_attn_workspace = attn_workspace;
 
-        // FOLLOWING WHAT WAS DONE IN ORGINAL SOURCE...
 
-        params.num_splits_dynamic_ptr = (int *) 1;
+    // if TYPE FP8, output must be BF16
+    
+    // To compute required size of attn_workspace:
 
-        int num_splits = get_num_splits(params);
-        params.num_splits = num_splits;
+    // attn_workspace_size = 0
+
+    // Occum and LSE accum:
+    // If num_splits > 1:
+    //      attn_workspace_size += num_splits * sizeof(float) * num_q_heads * total_q * (1 + head_dim)
+    
+    // Tile count sem: 
+    // If arch >= 90 || num_splits > 1:
+    //      attn_workspace_size += sizeof(int)
+
+    // Dynamic split ptr for each seq:
+    // If num_seqs <= 992:
+    //      attn_workspace_size += num_seqs * sizeof(int)
+
+    int flash3_fwd_wrapper(CUstream stream, int arch, int num_sm,
+                        int flash_dtype_as_int,
+                        int num_seqs, int total_q, int total_k,
+                        int * cum_q_seqlens, int max_seqlen_q,
+                        int * cum_k_seqlens, int max_seqlen_k,
+                        int num_q_heads, int num_kv_heads, int head_dim,
+                        void * x_q, void * x_k, void * x_v,
+                        void * x_attn_out, void * softmax_lse,
+                        void * attn_workspace) {
+
         
-        if (params.num_splits > 1){
-            
-            // (num_splits, num_heads, total_q, headdim)
-            params.oaccum_ptr = (float *) cur_attn_workspace;
-            cur_attn_workspace += (num_splits * num_q_heads * total_q * head_dim * sizeof(float));
-            
-            params.oaccum_split_stride = params.num_splits;
-            params.oaccum_row_stride = model_dim;
-            params.oaccum_head_stride = head_dim;
+        int ret;
 
-            // (num_splits, num_heads, total_q)
-            params.softmax_lseaccum_ptr = (float *) cur_attn_workspace;
-            cur_attn_workspace += (num_splits * num_q_heads * total_q * sizeof(float));
-            params.lseaccum_split_stride = params.num_splits;
-            params.lseaccum_head_stride = head_dim;
+        Flash_fwd_params params;
+        memset(&params, 0, sizeof(Flash_fwd_params));    
+
+        ret = set_flash3_fwd_params(params,
+                                    arch, num_sm,
+                                    flash_dtype_as_int,
+                                    num_seqs, total_q, total_k,
+                                    cum_q_seqlens, max_seqlen_q,
+                                    cum_k_seqlens, max_seqlen_k,
+                                    num_q_heads, num_kv_heads, head_dim,
+                                    x_q, x_k, x_v,
+                                    x_attn_out, softmax_lse);
+
+        if (ret){
+            fprintf(stderr, "Error: setting flash3 fwd params failed...\n");
+            return -1;
         }
 
-        
-        params.pack_gqa = get_pack_gqa(params);
 
-        int to_use_dynamic_split = 0;
 
-        // Harcoded number from original source
-        if (params.b <= 992){
-            to_use_dynamic_split = 1;
-        } 
-
-        int needs_sem = 0;
-        if ((params.arch >= 90) || (params.num_splits > 1)){
-            needs_sem = 1;
+        uint64_t used_workspace_size = 0;
+        ret = set_flash3_fwd_workspace(params, attn_workspace, &used_workspace_size);
+        if (ret){
+            fprintf(stderr, "Error: setting flash3_fwd params failed...\n");
+            return -1;
         }
-
-
-        params.tile_count_semaphore = NULL;
-        
-        // reset back to null now
-        params.num_splits_dynamic_ptr = NULL;
-        
-        if ((needs_sem) || (to_use_dynamic_split)) {
-            if (needs_sem){
-                if (!to_use_dynamic_split){
-                    // ensure tile count semaphore set to zero
-                    // should happen before call to this function
-                }
-                // only 1 int
-                params.tile_count_semaphore = (int *) cur_attn_workspace;
-                cur_attn_workspace += sizeof(int);
-            }
-
-            if (to_use_dynamic_split){
-                // need params.b integers here or params.b - 1..?
-                // is this +1 a bug if the sched doesn't need sem...?
-                // they initialzed buffer as needs_sem + use_dynamic * params.b
-                // assuming bug...
-                // params.num_splits_dynamic_ptr = ((int *) cur_attn_workspace + 1);
-                params.num_splits_dynamic_ptr = (int *) cur_attn_workspace;
-
-            }
-        }
-
-        
 
         // copying from Original source...
         if (params.num_splits_dynamic_ptr){
@@ -462,7 +665,7 @@ extern "C" {
 
         // ^ did sched metadata above
         params.skip_scheduler_metadata_computation = true;
-
+        
         // Also calls combine at end of function if 
         // num_splits > 1
         run_mha_fwd(params, stream);
@@ -470,19 +673,88 @@ extern "C" {
         return 0;
     }
 
-    int flash3_bwd_wrapper(CUstream stream, 
+    int flash3_bwd_wrapper(CUstream stream, int arch, int num_sm,
+                            int flash_dtype_as_int, 
                             int num_seqs, int total_q, int total_k, 
                             int * cum_q_seqlens, int max_seqlen_q,
-                            int * k_seqlens, int max_seqlen_k,
-                            int flash_dtype_as_int, 
+                            int * cum_k_seqlens, int max_seqlen_k,
                             int num_q_heads, int num_kv_heads, int head_dim, 
                             void * x_q, void * x_k, void * x_v, 
                             void * x_attn_out, void * softmax_lse, 
-                            int arch, int num_sm, 
-                            void * attn_workspace) {
+                            void * dx_out, 
+                            void * dx_q, void * dx_k, void * dx_v,
+                            void * attn_bwd_workspace) {
         
-        fprintf(stderr, "Unimplemented Error: flash3_bwd_wrapper\n");
-        return -1;
+
+        // ensure valid datatype...
+        DataflowDatatype flash_dt = (DataflowDatatype) flash_dtype_as_int;
+        if ((flash_dt != DATAFLOW_FP16) || (flash_dt != DATAFLOW_BF16)){
+           fprintf(stderr, "Error: flash3 bwd only supports FP16 or BF16 bwds...\n");
+           return -1;
+        }
+        
+
+        // Set Same Params as FWD...
+        int ret;
+
+        Flash_bwd_params params;
+        memset(&params, 0, sizeof(Flash_bwd_params));   
+
+        ret = set_flash3_fwd_params(params,
+                                    arch, num_sm,
+                                    flash_dtype_as_int,
+                                    num_seqs, total_q, total_k,
+                                    cum_q_seqlens, max_seqlen_q,
+                                    cum_k_seqlens, max_seqlen_k,
+                                    num_q_heads, num_kv_heads, head_dim,
+                                    x_q, x_k, x_v,
+                                    x_attn_out, softmax_lse);
+
+        if (ret){
+            fprintf(stderr, "Error: setting flash3 fwd params during bwd failed...\n");
+            return -1;
+        }
+
+
+        // NOW SET BWD UNIQUE PARAMS...
+        
+        int model_dim = num_q_heads * head_dim;
+        int kv_dim = num_kv_heads * head_dim;
+
+        params.do_ptr = dx_out;
+        params.do_row_stride = model_dim;
+        params.do_head_stride = head_dim;
+        params.do_batch_stride = 0;
+        
+        params.dq_ptr = dx_q;
+        params.dq_row_stride = model_dim;
+        params.dq_head_stride = head_dim;
+        params.dq_batch_stride = 0;
+
+        params.dk_ptr = dx_k;
+        params.dk_row_stride = kv_dim;
+        params.dk_head_stride = head_dim;
+        params.dk_batch_stride = 0;
+
+        params.dv_ptr = dx_v;
+        params.dv_row_stride = kv_dim;
+        params.dv_head_stride = head_dim;
+        params.dv_batch_stride = 0;
+
+
+        params.deterministic = true;
+
+
+        uint64_t used_workspace_size = 0;
+        ret = set_flash3_bwd_workspace(params, attn_bwd_workspace, &used_workspace_size);
+        if (ret){
+            fprintf(stderr, "Error: setting flash3 bwd workspace failed...\n");
+            return -1;
+        }
+
+        run_mha_bwd(params, stream);
+
+        return 0;
 
     }
 }

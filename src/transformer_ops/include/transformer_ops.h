@@ -57,8 +57,8 @@ int submit_matmul(Dataflow_Handle * handle, int stream_id,
 
 // - cum_q_seqlens should be of length num_seqs + 1, starting with 0
 //		- cumsum of # of queries in each sequence
-// - k_seqlens should be of length num_seqs
-//		- total number of keys in sequence (should be >= # of queries) 
+// - cum_k_seqlens should be of length num_seqs + 1, starting with 0
+//		- cumsum of total # (prior context + current) of keys in sequence (should be >= # of queries) 
 //			- (assumes that if sequence has Q queries and K keys, the starting position of Q_0
 //				occurs at position K - Q)
 
@@ -66,7 +66,7 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 						DataflowDatatype fwd_dt,
 						int num_seqs, int total_q, int total_k, 
 						int * cum_q_seqlens, int max_seqlen_q,
-						int * k_seqlens, int max_seqlen_k,
+						int * cum_k_seqlens, int max_seqlen_k,
 						int num_q_heads, int num_kv_heads, int head_dim, 
 						void * x_q, void * x_k, void * x_v, 
 						void * x_attn_out, void * softmax_lse, 
@@ -74,18 +74,23 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 
 
 
-// TODO: 
-/*
+// FOR FLASH3 ATTENTION:
+
+// Bwd Dt must be either FP16 or BF16!
+
+// if fwd_dt is FP8, then x_q, x_k, and x_v must be converted to 
+// the bwd_dt before submission of this function
 int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
-						DataflowDatatype fwd_dt,
+						DataflowDatatype bwd_dt,
 						int num_seqs, int total_q, int total_k, 
 						int * cum_q_seqlens, int max_seqlen_q,
-						int * k_seqlens, int max_seqlen_k, 
-						int flash_dtype_as_int, 
+						int * cum_k_seqlens, int max_seqlen_k,
 						int num_q_heads, int num_kv_heads, int head_dim, 
-						void * x_q, void * x_k, void * x_v, void * x_attn_out, void * softmax_lse, 
-						void * attn_workspace);
-*/
+						void * x_q, void * x_k, void * x_v, 
+						void * x_attn_out, void * softmax_lse,
+						void * dx_out,
+						void * dx_q, void * dx_k, void * dx_v, 
+						void * attn_bwd_workspace);
 
 
 // NATIVE OPS
