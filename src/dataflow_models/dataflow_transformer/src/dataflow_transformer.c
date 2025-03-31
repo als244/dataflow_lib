@@ -149,11 +149,12 @@ static int set_transformer_block_weight_offsets(Transformer_Block_Config * confi
 }
 
 
-Transformer_Block * init_transformer_block(DataflowDatatype block_dt,
+Transformer_Block * init_transformer_block(DataflowDatatype block_dt, DataflowDatatype compute_dt,
 						   DataflowNormalizationType normalization_type, 
 						   DataflowAttentionType attention_type,
 						   DataflowMLPType mlp_type,
 						   DataflowActivationType activation_type,
+						   float eps, int theta,
 						   int num_q_heads, int num_kv_heads, int head_dim,
 						   int ffn_dim,
 						   MoE_Config * moe_config,
@@ -169,9 +170,16 @@ Transformer_Block * init_transformer_block(DataflowDatatype block_dt,
 	memset(block, 0, sizeof(Transformer_Block));
 
 	(block -> config).block_dt = block_dt;
+	(block -> config).compute_dt = compute_dt;
+
+
 	(block -> config).normalization_type = normalization_type;
 	(block -> config).attention_type = attention_type;
 	(block -> config).mlp_type = mlp_type;
+
+	(block -> config).eps = eps;
+	(block -> config).theta = theta;
+
 	(block -> config).num_q_heads = num_q_heads;
 	(block -> config).num_kv_heads = num_kv_heads;
 	(block -> config).head_dim = head_dim;
@@ -237,6 +245,23 @@ Transformer_Block * init_transformer_block(DataflowDatatype block_dt,
 		(block -> config).moe_config.local_expert_inds[0] = 0;
 
 	}
+
+
+	// dont allow moe yet
+	if (mlp_type == DATAFLOW_MOE_MLP){
+		fprintf(stderr, "Error: MOE MLP not yet unsupported...\n");
+		free((block -> config).moe_config.local_expert_inds);
+		free(block);
+		return NULL;
+	}
+
+	if (mlp_type == DATAFLOW_VANILLA_MLP){
+		fprintf(stderr, "Error: VANILLA MLP not yet unsupported...\n");
+		free((block -> config).moe_config.local_expert_inds);
+		free(block);
+		return NULL;
+	}
+
 
 	(block -> config).pointer_alignment = pointer_alignment;
 
@@ -318,9 +343,226 @@ int bind_transformer_block(void * buffer, Transformer_Block * transformer_block)
 // }
 
 
-// int submit_transformer_block(Seq_Batch * seq_batch, Transformer_Block * transformer_block, Transformer_Block_Activations * activation_buffer) {
-// 	return -1;
-// }
+int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * X, Transformer_Block * transformer_block, Transformer_Block_Activations * activations) {
+
+	int ret;
+
+
+	DataflowDatatype fwd_dt = (transformer_block -> config).block_dt;
+	DataflowDatatype compute_dt = (transformer_block -> config).compute_dt;
+
+	int num_seqs = (activations -> config).num_seqs;
+	int total_q = (activations -> config).total_q;
+	int total_k = (activations -> config).total_k;
+
+	
+	int model_dim = (transformer_block -> config).model_dim;
+	int kv_dim = (transformer_block -> config).kv_dim;
+
+	
+	uint64_t workspaceBytes = (activations -> config).workspaceBytes;
+	void * workspace = (activations -> config).workspace;
+
+
+	printf("Submitting Attention RMS Norm...!\n");
+
+	ret = submit_rms_norm(dataflow_handle, compute_stream_id, 
+						fwd_dt, 
+						total_q, model_dim, (transformer_block -> config).eps, 
+						transformer_block -> w_attn_norm, X, activations -> x_temp, 
+						activations -> attn_norm_weighted_sums, activations -> attn_norm_rms_vals);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit attention norm...\n");
+		return -1;
+	}	
+
+
+
+	printf("Submitting Q, K, V matmuls...!\n");
+
+	// Q Proj
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
+					compute_dt,
+					total_q, model_dim, model_dim,
+					1.0, 0.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_q, NULL, activations -> x_q);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit q matmul proj...\n");
+		return -1;
+	}
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
+					compute_dt,
+					total_q, model_dim, kv_dim,
+					1.0, 0.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_k, NULL, activations -> x_k_local);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
+		return -1;
+	}
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
+					compute_dt,
+					total_q, model_dim, kv_dim,
+					1.0, 0.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_v, NULL, activations -> x_v_local);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
+		return -1;
+	}
+
+
+	printf("Submitting RoPE...!\n");
+
+	int num_q_heads = (transformer_block -> config).num_q_heads;
+	int num_kv_heads = (transformer_block -> config).num_kv_heads;
+	int head_dim = (transformer_block -> config).head_dim;
+
+
+	uint64_t N = (uint64_t) total_q * (uint64_t) model_dim;
+
+	ret = submit_rope(dataflow_handle, compute_stream_id, 
+						fwd_dt, 
+						N, model_dim, head_dim, num_kv_heads, (transformer_block -> config).theta,
+						(activations -> config).seq_positions, activations -> x_q, activations -> x_k_local);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit rope...\n");
+		return -1;
+	}
+
+
+	printf("Submitting Attention...!\n");
+
+	
+
+	void * q_seq_offsets = (activations -> config).q_seq_offsets;
+	void * q_seq_lens = (activations -> config).q_seq_lens;
+	int max_seqlen_q = (activations -> config).max_seqlen_q;
+
+	void * k_seq_offsets = (activations -> config).k_seq_offsets;
+	void * k_seq_lens = (activations -> config).k_seq_lens;
+	int max_seqlen_k = (activations -> config).max_seqlen_k;
+
+	ret = submit_attention(dataflow_handle, compute_stream_id,
+						 fwd_dt, 
+						 num_seqs, total_q, total_k,
+						 q_seq_offsets, q_seq_lens, max_seqlen_q,
+						 k_seq_offsets, k_seq_lens, max_seqlen_k,
+						 num_q_heads, num_kv_heads, head_dim,
+						 activations -> x_q, activations -> x_k_local, activations -> x_v_local,
+						 activations -> x_temp, activations -> softmax_lse, 
+						 workspace);
+	if (ret){
+		fprintf(stderr, "Error: failed to submit attention...\n");
+		return -1;
+	}
+
+
+	printf("Submitting Attention Output Matmul...!\n");
+
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
+					compute_dt,
+					total_q, model_dim, model_dim,
+					1.0, 1.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_o, X, activations -> x_o);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit o matmul proj...\n");
+		return -1;
+	}
+
+
+	printf("Submitting FFN RMS Norm...!\n");
+
+	ret = submit_rms_norm(dataflow_handle, compute_stream_id, 
+						fwd_dt, 
+						total_q, model_dim, (transformer_block -> config).eps, 
+						transformer_block -> w_ffn_norm, activations -> x_o, activations -> x_temp, 
+						activations -> ffn_norm_weighted_sums, activations -> ffn_norm_rms_vals);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit ffn norm...\n");
+		return -1;
+	}
+
+
+	printf("Submitting FFN w1 and w3 matmuls...!\n");
+
+	int ffn_dim = (int) (transformer_block -> config).ffn_dim;
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
+					compute_dt,
+					total_q, model_dim, ffn_dim,
+					1.0, 0.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_1, NULL, activations -> x_1);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit w1 matmul proj...\n");
+		return -1;
+	}
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
+					compute_dt,
+					total_q, model_dim, ffn_dim,
+					1.0, 0.0,
+					workspaceBytes, workspace,
+					activations -> x_temp, transformer_block -> w_3, NULL, activations -> x_3);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit w3 matmul proj...\n");
+		return -1;
+	}
+
+
+	printf("Submitting SwiGLU Activation...!\n");
+
+
+	ret = submit_swiglu(dataflow_handle, compute_stream_id, 
+						fwd_dt, 
+						total_q, ffn_dim, 
+						activations -> x_1, activations -> x_3, activations -> x_temp_mlp);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit swiglu activation...\n");
+		return -1;
+	}
+
+
+	printf("Submitting FFN w2 matmul...!\n");
+
+	ret = submit_matmul(dataflow_handle, compute_stream_id, 
+					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
+					compute_dt,
+					total_q, ffn_dim, model_dim,
+					1.0, 1.0,
+					workspaceBytes, workspace,
+					activations -> x_temp_mlp, transformer_block -> w_2, activations -> x_o, activations -> x_2);
+
+	if (ret){
+		fprintf(stderr, "Error: failed to submit w2 matmul proj...\n");
+		return -1;
+	}
+
+
+	return 0;
+
+}
 
 
 

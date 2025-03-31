@@ -25,17 +25,23 @@ OPS_INCLUDE_DIR = ../../ops/include
 
 SET_OPS_INCLUDE_DIR = ../../set_ops/include
 
+SET_OPS_OBJ_DEPENDS = ../../set_ops/objs/set_native_op_skeletons.o ../../set_ops/objs/set_external_op_skeletons.o
+
 FINGERPRINT_INCLUDE_DIR = ../../fingerprint/include
+
+FINGERPRINT_OBJ_DEPENDS = ../../fingerprint/objs/fingerprint.o
+
+FINGERPRINT_LIB_DEPENDS = -lcrypto
 
 ALL_INCLUDES = -I${TABLE_INCLUDE_DIR} -I${OPS_INCLUDE_DIR} -I${SET_OPS_INCLUDE_DIR} -I${FINGERPRINT_INCLUDE_DIR} -I${DATAFLOW_INCLUDE_DIR} -I${DATATYPE_INCLUDE_DIR} -I${DATAFLOW_HANDLE_INCLUDE_DIR} -I${DATAFLOW_OP_INCLUDE_DIR} -I${DATAFLOW_MODELS_INCLUDE_DIR} -I${DATAFLOW_TRANSFORMER_INCLUDE_DIR}
 
-
-ALL_OBJ_DEPENDS = ${DATATYPE_OBJ_DEPENDS}
+#ALL_LIB_DEPENDS = -L${DATAFLOW_OP_LIB_DIR} ${DATAFLOW_OP_LIB} -Wl,-rpath,${DATAFLOW_OP_LIB_DIR}
+ALL_LIB_DEPENDS = -lm -ldl -pthread ${FINGERPRINT_LIB_DEPENDS} -L${DATAFLOW_OP_LIB_DIR} ${DATAFLOW_OP_LIB} -Wl,-rpath,${DATAFLOW_OP_LIB_DIR}
 
 all: test/test_transformer
 
-test/test_transformer: test/test_transformer.c objs/dataflow_transformer.o ${ALL_OBJ_DEPENDS}
-	${CC} ${CFLAGS} ${ALL_INCLUDES} $^ -o $@
+test/test_transformer: test/test_transformer.c objs/dataflow_transformer.o
+	${CC} ${CFLAGS} ${ALL_INCLUDES} $^ -o $@ ${ALL_LIB_DEPENDS}
 
 
 objs/dataflow_transformer.o: src/dataflow_transformer.c

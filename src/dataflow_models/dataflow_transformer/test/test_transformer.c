@@ -4,6 +4,12 @@ int main(int argc, char * argv[]){
 
 	DataflowDatatype block_dt = DATAFLOW_FP16;
 
+	// for matmul accumulations...
+	// on Geforce using FP16 gets double perf,
+	// on datacenter cards should use DATAFLOW_FP32
+	DataflowDatatype compute_dt = DATAFLOW_FP16;
+
+
 	DataflowNormalizationType norm_type = DATAFLOW_RMSNORM;
 
 	DataflowAttentionType attn_type = DATAFLOW_EXACT_ATTENTION;
@@ -12,6 +18,8 @@ int main(int argc, char * argv[]){
 
 	DataflowActivationType activ_type = DATAFLOW_SWIGLU;
 
+	float eps = 1e-5;
+	int theta = 500000;
 
 	// llama3 70B config
 	int num_q_heads = 64;
@@ -35,7 +43,9 @@ int main(int argc, char * argv[]){
 	// depending on filesystem in order to use O_RDONLY | O_DIRECT, alignment may be different...
 	int pointer_alignment = 4096;
 
-	Transformer_Block * block = init_transformer_block(block_dt, norm_type, attn_type, mlp_type, activ_type,
+	Transformer_Block * block = init_transformer_block(block_dt, compute_dt,
+														norm_type, attn_type, mlp_type, activ_type,
+														eps, theta,
 														num_q_heads, num_kv_heads, head_dim,
 														ffn_dim,
 														moe_config,

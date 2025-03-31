@@ -23,10 +23,17 @@ typedef struct transformer_block_weight_offsets {
 
 typedef struct transformer_block_config {
 	DataflowDatatype block_dt;
+	// for Matmul accumulation
+	// if on Geforce using FP16 gives twice as much perf.
+	DataflowDatatype compute_dt;
 	DataflowNormalizationType normalization_type;
 	DataflowAttentionType attention_type;
 	DataflowMLPType mlp_type;
 	DataflowActivationType activation_type;
+
+	float eps;
+	int theta;
+
 	int num_q_heads;
 	int num_kv_heads;
 	int head_dim;
@@ -83,33 +90,111 @@ typedef struct transformer_block {
 } Transformer_Block;
 
 
+typedef struct transformer_block_activations_config{
+	int num_seqs;
+
+	// will be sum of q_seq_lens
+	int total_q;
+	// will be sum of k_seq_lens
+	int total_k;
+
+	// Device Metadata Buffers
+
+	// for use in both attention and matmuls
+	void * workspace;
+	uint64_t workspaceBytes;
+	
+	// for rope
+	// of size total_q
+	int * seq_positions;
+
+	// for attn
+
+	// of size num_seqs + 1
+	// where index i represents starting
+	// token offset of seq i. The value at q_seq_offsets[num_seqs] 
+	// shoudl be q_seq_offsets[num_seqs - 1] + q_seq_lens[num_seqs - 1]
+	int * q_seq_offsets;
+	// of size num_seqs
+	// q_seq_lens[i] represents total new queries to process for seq i,
+	// starting at the corresponding offset, consecutively
+	int * q_seq_lens;
+	// largest value from q_seq_lens
+	int max_seqlen_q;
+
+	// of size num_seqs + 1; similar to q_seq_offsets, but now represents for kv cache
+	// starting offsets. We can pass x_k, and x_v of different number of total
+	// tokens (usually >= total_q) so during forwards pass the new queries
+	// can utilize prior cached keys and values
+
+	// during backwards pass if we start processing chunks from the end of the 
+	// seq to the beginning, then we can also use this in order to  
+	int * k_seq_offsets;
+	// of size num_seqs; similar to q_seq_lens
+	// Contains the number of keys we want to use for each sequence,
+	// starting at the offset, consecutively
+	int * k_seq_lens;
+	// largest value from k_seq_lens
+	int max_seqlen_k;
+
+	// Can also add in metadata regarding MoE if needed...
+} Transformer_Block_Activations_Config;
+
 typedef struct transformer_block_activations {
 	Transformer_Block * block;
-	// for rms norm: weighted_sums & rms_vals
+	Transformer_Block_Activations_Config config;
 	void * buffer;
-	void * x_attn_norm_misc;
+
+
+	// used during backprop
+	void * attn_norm_weighted_sums;
+	void * attn_norm_rms_vals;
 	void * x_q;
-	// Set x_k and x_v
-	// to be within seq context found
-	// within seq_batch
+	// These are the outputs of passing
+	// normalized input through K and V weight
+	// matrices
+	void * x_k_local;
+	void * x_v_local;
+
+	// softmax_lse
+	void * softmax_lse;
+	void * x_o;
+	// used during backprop
+	void * ffn_norm_weighted_sums;
+	void * ffn_norm_rms_vals;
+	void ** x_1;
+	void ** x_2;
+	void ** x_3;
+
+	// used as temporary buffer during
+	// norm outputs and attention output
+	void * x_temp;
+
+	// used as temporary output buffer during
+	// MLP
+
+	// needs to be total_q * ffn_dim
+	void * x_temp_mlp;
+
+	// Can use copy_to_seq_cache to move x_k_local (post rope)
+	// and x_v_local to proper locations within these matrices
+	// if there are multiple seqs and also prior caching involved...
+
+	// These are the matrices passed to attention
+	// mechanism and may contain other state
+	// (i.e. prior computed cached keys/values during fwd,
+	// 		or accumulated gradients during backprop)
 	void * x_k;
 	void * x_v;
-	// softmax_lse
-	void * x_attn_misc;
-	void * x_o;
-	// for rms norm: weighted_sums & rms_vals
-	void * x_ffn_norm_misc;
-	void ** w_1;
-	void ** w_2;
-	void ** w_3;
 } Transformer_Block_Activations;
 
 
-Transformer_Block * init_transformer_block(DataflowDatatype block_dt,
+Transformer_Block * init_transformer_block(DataflowDatatype block_dt, DataflowDatatype compute_dt,
 						   DataflowNormalizationType normalization_type, 
 						   DataflowAttentionType attention_type,
 						   DataflowMLPType mlp_type,
 						   DataflowActivationType activation_type,
+						   float eps, int theta,
 						   int num_q_heads, int num_kv_heads, int head_dim,
 						   int ffn_dim,
 						   MoE_Config * moe_config,
@@ -128,10 +213,11 @@ int bind_transformer_block(void * buffer, Transformer_Block * transformer_block)
 //int load_transformer_block(char * filename, Transformer_Block * transformer_block);
 
 
+// Need to set Seq Batch metadata...!
 //int bind_transformer_block_activations(void * buffer, Seq_Batch * seq_batch, Transformer_Block * block, Transformer_Block_Activations * activation_buffer);
 
 
-//int submit_transformer_block(Seq_Batch * seq_batch, Transformer_Block * transformer_block, Transformer_Block_Activations * activation_buffer);
+int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * X, Transformer_Block * transformer_block, Transformer_Block_Activations * activations);
 
 
 #endif

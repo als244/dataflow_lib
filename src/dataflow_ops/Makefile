@@ -14,11 +14,20 @@ SET_OPS_INCLUDE_DIR = ../set_ops/include
 DATAFLOW_OP_OBJS = objs/matmul_op.o objs/attention_op.o objs/norm_ops.o objs/attn_misc_ops.o objs/mlp_misc_ops.o objs/loss_misc_ops.o 
 
 DATAFLOW_OP_LIB = lib/libdataflowops.so
-DATAFLOW_OP_LIB_DEPENDS = -lcrypto -pthread
+DATAFLOW_OP_LIB_DEPENDS = -lcrypto -pthread -lm -ldl
+
+
+DATATYPE_PATH = ../datatype
+DATATYPE_OBJ_DEPENDS = ${DATATYPE_PATH}/objs/dataflow_datatype.o ${DATATYPE_PATH}/objs/solo_conversion.o ${DATATYPE_PATH}/objs/convert_datatype.o ${DATATYPE_PATH}/objs/convert_datatype_avx512.o
+FINGERPRINT_OBJ_DEPENDS = ../fingerprint/objs/fingerprint.o
+SET_OPS_OBJ_DEPENDS = ../set_ops/objs/set_native_op_skeletons.o ../set_ops/objs/set_external_op_skeletons.o
+
+DATAFLOW_OP_LIB_OTHER_OBJ_DEPENDS = ${DATATYPE_OBJ_DEPENDS} ${FINGERPRINT_OBJ_DEPENDS} ${SET_OPS_OBJ_DEPENDS}
+
 
 all: ${DATAFLOW_OP_LIB} ${DATAFLOW_OP_OBJS}
 
-${DATAFLOW_OP_LIB}: ${DATAFLOW_OP_OBJS}
+${DATAFLOW_OP_LIB}: ${DATAFLOW_OP_OBJS} ${DATAFLOW_OP_LIB_OTHER_OBJ_DEPENDS}
 	${CC} ${CFLAGS} -shared -I${DATAFLOW_OP_INCLUDE_DIR} -I${PROJ_INCLUDE_DIR} -I${DATATYPE_INCLUDE_DIR} -I${OPS_INCLUDE_DIR} -I${SET_OPS_INCLUDE_DIR} -I${HANDLE_INCLUDE_DIR} -I${FINGERPRINT_INCLUDE_DIR} -I${TABLE_INCLUDE_DIR} $^ -o $@ ${DATAFLOW_OP_LIB_DEPENDS} 
 
 objs/matmul_op.o: src/matmul_op.c
