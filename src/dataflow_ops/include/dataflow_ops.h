@@ -1,5 +1,5 @@
-#ifndef TRANSFORMER_OPS_H
-#define TRANSFORMER_OPS_H
+#ifndef DATAFLOW_OPS_H
+#define DATAFLOW_OPS_H
 
 #include "dataflow.h"
 #include "ops.h"
