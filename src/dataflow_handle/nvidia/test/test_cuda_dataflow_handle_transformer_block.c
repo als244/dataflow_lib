@@ -572,8 +572,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, model_dim,
 					1.0, 0.0,
 					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wq, NULL, d_wq_out,
-					0);
+					d_attn_norm_out, d_wq, NULL, d_wq_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit q matmul proj...\n");
@@ -586,8 +585,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, kv_dim,
 					1.0, 0.0,
 					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wk, NULL, d_wk_out,
-					0);
+					d_attn_norm_out, d_wk, NULL, d_wk_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
@@ -600,8 +598,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, kv_dim,
 					1.0, 0.0,
 					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wv, NULL, d_wv_out,
-					0);
+					d_attn_norm_out, d_wv, NULL, d_wv_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit v matmul proj...\n");
@@ -647,8 +644,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, model_dim,
 					1.0, 1.0,
 					workspaceBytes, d_matmul_workspace,
-					d_attn_out, d_wo, d_orig_x, d_wo_out,
-					0);
+					d_attn_out, d_wo, d_orig_x, d_wo_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit o matmul proj...\n");
@@ -678,8 +674,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, (int) ffn_dim,
 					1.0, 0.0,
 					workspaceBytes, d_matmul_workspace,
-					d_ffn_norm_out, d_w1, NULL, d_w1_out,
-					0);
+					d_ffn_norm_out, d_w1, NULL, d_w1_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w1 matmul proj...\n");
@@ -692,8 +687,7 @@ int main(int argc, char * argv[]){
 					total_q, model_dim, (int) ffn_dim,
 					1.0, 0.0,
 					workspaceBytes, d_matmul_workspace,
-					d_ffn_norm_out, d_w3, NULL, d_w3_out,
-					0);
+					d_ffn_norm_out, d_w3, NULL, d_w3_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w3 matmul proj...\n");
@@ -723,8 +717,7 @@ int main(int argc, char * argv[]){
 					total_q, (int) ffn_dim, model_dim,
 					1.0, 1.0,
 					workspaceBytes, d_matmul_workspace,
-					d_swiglu_out, d_w2, d_wo_out, d_w2_out,
-					0);
+					d_swiglu_out, d_w2, d_wo_out, d_w2_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w2 matmul proj...\n");

@@ -303,18 +303,21 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	void ** op_args = op -> op_args;
 
 
-	DataflowDatatype a_dt = *((DataflowDatatype *) op_args[0]);
-	DataflowDatatype b_dt = *((DataflowDatatype *) op_args[1]);
-	DataflowDatatype c_dt = *((DataflowDatatype *) op_args[2]);
-	DataflowDatatype d_dt = *((DataflowDatatype *) op_args[3]);
+	int num_sms = *((int *) op_args[0]);
 
-	void * A = (void *) *((uint64_t *) op_args[12]);
-	void * B = (void *) *((uint64_t *) op_args[13]);
-	void * C = (void *) *((uint64_t *) op_args[14]);
-	void * D = (void *) *((uint64_t *) op_args[15]);
 
-	matmul_params -> alpha_f = *((float *) op_args[8]);
-	matmul_params -> beta_f = *((float *) op_args[9]);
+	DataflowDatatype a_dt = *((DataflowDatatype *) op_args[1]);
+	DataflowDatatype b_dt = *((DataflowDatatype *) op_args[2]);
+	DataflowDatatype c_dt = *((DataflowDatatype *) op_args[3]);
+	DataflowDatatype d_dt = *((DataflowDatatype *) op_args[4]);
+
+	void * A = (void *) *((uint64_t *) op_args[13]);
+	void * B = (void *) *((uint64_t *) op_args[14]);
+	void * C = (void *) *((uint64_t *) op_args[15]);
+	void * D = (void *) *((uint64_t *) op_args[16]);
+
+	matmul_params -> alpha_f = *((float *) op_args[9]);
+	matmul_params -> beta_f = *((float *) op_args[10]);
 
 
 	// NOTE:
@@ -358,7 +361,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		}
 	}
 
-	DataflowDatatype compute_dt = *((DataflowDatatype *) op_args[4]);
+	DataflowDatatype compute_dt = *((DataflowDatatype *) op_args[5]);
 
 	cudaDataType scale_cuda_dt;
 	cublasComputeType_t cublas_compute_type;
@@ -374,8 +377,6 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		fprintf(stderr, "Error: cublaslt matmul desc could not be created...\n");
 		return -1;
 	}
-
-	int num_sms = *((int *) op_args[16]);
 
 	if (num_sms > 0){
 		status = cublasLtMatmulDescSetAttribute(matmul_params -> computeDesc, CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET, &num_sms, sizeof(num_sms));
@@ -400,9 +401,9 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	}
 
 
-	int M = *((int *) op_args[5]);
-	int K = *((int *) op_args[6]);
-	int N = *((int *) op_args[7]);
+	int M = *((int *) op_args[6]);
+	int K = *((int *) op_args[7]);
+	int N = *((int *) op_args[8]);
 
 
 	// Now Adesc actually referes the B matrix. a_cuda_dt has already been set appropriately
@@ -465,8 +466,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	uint64_t workspaceBytes = *((uint64_t *) op_args[10]);
-	void * workspace = (void *) *((uint64_t *) op_args[11]);
+	uint64_t workspaceBytes = *((uint64_t *) op_args[11]);
+	void * workspace = (void *) *((uint64_t *) op_args[12]);
 
 	matmul_params -> workspaceBytes = (size_t) workspaceBytes;
 	matmul_params -> workspace = workspace;

@@ -20,43 +20,43 @@ void set_external_matmul_skeleton(Op_Skeleton * skeleton) {
 
 	DataflowDatatype * arg_dtypes = skeleton_header -> arg_dtypes;
 
-	// A DataflowDatatype
+	// num_sms
 	arg_dtypes[0] = DATAFLOW_INT_SCALAR;
-	// B DataflowDatatype
+
+	// A DataflowDatatype
 	arg_dtypes[1] = DATAFLOW_INT_SCALAR;
-	// C DataflowDatatype
+	// B DataflowDatatype
 	arg_dtypes[2] = DATAFLOW_INT_SCALAR;
-	// D DataflowDatatype
+	// C DataflowDatatype
 	arg_dtypes[3] = DATAFLOW_INT_SCALAR;
-	// Compute Type as DataflowDatatype (FP32, FP16, or BF16)
+	// D DataflowDatatype
 	arg_dtypes[4] = DATAFLOW_INT_SCALAR;
+	// Compute Type as DataflowDatatype (FP32, FP16, or BF16)
+	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
 
 	// M
-	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
-	// K
 	arg_dtypes[6] = DATAFLOW_INT_SCALAR;
-	// N
+	// K
 	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
+	// N
+	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
 	// alpha
-	arg_dtypes[8] = DATAFLOW_FP32_SCALAR;
-	// beta
 	arg_dtypes[9] = DATAFLOW_FP32_SCALAR;
+	// beta
+	arg_dtypes[10] = DATAFLOW_FP32_SCALAR;
 	// workspace bytes
-	arg_dtypes[10] = DATAFLOW_UINT64;
+	arg_dtypes[11] = DATAFLOW_UINT64;
 	// workspace
-	arg_dtypes[11] = DATAFLOW_VOID;
+	arg_dtypes[12] = DATAFLOW_VOID;
 
 	// A
-	arg_dtypes[12] = DATAFLOW_VOID;
-	// B
 	arg_dtypes[13] = DATAFLOW_VOID;
-	// C
+	// B
 	arg_dtypes[14] = DATAFLOW_VOID;
-	// D
+	// C
 	arg_dtypes[15] = DATAFLOW_VOID;
-
-	// num_sms
-	arg_dtypes[16] = DATAFLOW_INT_SCALAR;
+	// D
+	arg_dtypes[16] = DATAFLOW_VOID;
 	
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){

@@ -25,8 +25,7 @@ int submit_matmul(Dataflow_Handle * handle, int stream_id,
 					int M, int K, int N,
 					float alpha, float beta,
 					uint64_t workspaceBytes, void * workspace,
-					void * A, void * B, void * C, void * D,
-					int num_procs);
+					void * A, void * B, void * C, void * D);
 
 
 

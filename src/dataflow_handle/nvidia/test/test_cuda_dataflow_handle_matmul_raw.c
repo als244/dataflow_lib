@@ -214,23 +214,24 @@ int main(int argc, char * argv[]){
 	int num_procs = 0;
 
 
-	matmul_op_args[0] = &a_dt;
-	matmul_op_args[1] = &b_dt;
-	matmul_op_args[2] = &c_dt;
-	matmul_op_args[3] = &d_dt;
-	matmul_op_args[4] = &compute_dt;
-	matmul_op_args[5] = &iM;
-	matmul_op_args[6] = &iK;
-	matmul_op_args[7] = &iN;
-	matmul_op_args[8] = &alpha;
-	matmul_op_args[9] = &beta;
-	matmul_op_args[10] = &workspaceBytes;
-	matmul_op_args[11] = &d_workspace;
-	matmul_op_args[12] = &d_a_matrix;
-	matmul_op_args[13] = &d_b_matrix;
-	matmul_op_args[14] = &d_c_matrix;
-	matmul_op_args[15] = &d_d_matrix;
-	matmul_op_args[16] = &num_procs;
+	matmul_op_args[0] = &num_procs;
+	matmul_op_args[1] = &a_dt;
+	matmul_op_args[2] = &b_dt;
+	matmul_op_args[3] = &c_dt;
+	matmul_op_args[4] = &d_dt;
+	matmul_op_args[5] = &compute_dt;
+	matmul_op_args[6] = &iM;
+	matmul_op_args[7] = &iK;
+	matmul_op_args[8] = &iN;
+	matmul_op_args[9] = &alpha;
+	matmul_op_args[10] = &beta;
+	matmul_op_args[11] = &workspaceBytes;
+	matmul_op_args[12] = &d_workspace;
+	matmul_op_args[13] = &d_a_matrix;
+	matmul_op_args[14] = &d_b_matrix;
+	matmul_op_args[15] = &d_c_matrix;
+	matmul_op_args[16] = &d_d_matrix;
+	
 
 
 	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &matmul_op, compute_stream_id_a);

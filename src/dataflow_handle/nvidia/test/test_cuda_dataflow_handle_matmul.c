@@ -207,8 +207,7 @@ int main(int argc, char * argv[]){
 						 iM, iK, iN,
 						 alpha, beta,
 						 workspaceBytes, d_workspace,
-						 d_a_matrix, d_b_matrix, NULL, d_d_matrix,
-						 0);
+						 d_a_matrix, d_b_matrix, NULL, d_d_matrix);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit matmul...\n");
 		return -1;
