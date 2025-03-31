@@ -1,0 +1,57 @@
+#include "dataflow_transformer.h"
+
+int main(int argc, char * argv[]){
+
+	DataflowDatatype block_dt = DATAFLOW_FP16;
+
+	DataflowNormalizationType norm_type = DATAFLOW_RMSNORM;
+
+	DataflowAttentionType attn_type = DATAFLOW_EXACT_ATTENTION;
+
+	DataflowMLPType mlp_type = DATAFLOW_GATED_MLP;
+
+	DataflowActivationType activ_type = DATAFLOW_SWIGLU;
+
+
+	// llama3 70B config
+	int num_q_heads = 64;
+	int num_kv_heads = 8;
+	int head_dim = 128;
+	int ffn_dim = 28672;
+
+	/*
+	// llama3 8b config
+	int num_q_heads = 32;
+	int num_kv_heads = 8;
+	int head_dim = 128;
+	int ffn_dim = 14336;
+	*/	
+
+	MoE_Config * moe_config = NULL;
+
+
+	// setting to host page size.
+	// really needs to be 256 in order to use tensor cores
+	// depending on filesystem in order to use O_RDONLY | O_DIRECT, alignment may be different...
+	int pointer_alignment = 4096;
+
+	Transformer_Block * block = init_transformer_block(block_dt, norm_type, attn_type, mlp_type, activ_type,
+														num_q_heads, num_kv_heads, head_dim,
+														ffn_dim,
+														moe_config,
+														pointer_alignment);
+
+
+	if (!block){
+		fprintf(stderr, "Error: failed to init transformer block...\n");
+		return -1;
+	}
+
+	uint64_t raw_size = get_transformer_block_raw_size(block);
+	uint64_t aligned_size = get_transformer_block_aligned_size(block);
+
+
+	printf("Transformer Block Sizes (bytes):\n\tRaw: %lu\n\tAligned (%d): %lu\n\n", raw_size, pointer_alignment, aligned_size);
+
+	return 0;
+}
