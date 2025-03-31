@@ -36,8 +36,8 @@
 int submit_attention(Dataflow_Handle * handle, int stream_id,
 						DataflowDatatype fwd_dt,
 						int num_seqs, int total_q, int total_k, 
-						int * cum_q_seqlens, int max_seqlen_q,
-						int * cum_k_seqlens, int max_seqlen_k,
+						int * q_seq_offsets, int * q_seq_lens, int max_seqlen_q,
+						int * k_seq_offsets, int * k_seq_lens, int max_seqlen_k,
 						int num_q_heads, int num_kv_heads, int head_dim, 
 						void * x_q, void * x_k, void * x_v, 
 						void * x_attn_out, void * softmax_lse, 
@@ -56,19 +56,21 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 	op_args[1] = &num_seqs;
 	op_args[2] = &total_q;
 	op_args[3] = &total_k;
-	op_args[4] = &cum_q_seqlens;
-	op_args[5] = &max_seqlen_q;
-	op_args[6] = &cum_k_seqlens;
-	op_args[7] = &max_seqlen_k;
-	op_args[8] = &num_q_heads;
-	op_args[9] = &num_kv_heads;
-	op_args[10] = &head_dim;
-	op_args[11] = &x_q;
-	op_args[12] = &x_k;
-	op_args[13] = &x_v;
-	op_args[14] = &x_attn_out;
-	op_args[15] = &softmax_lse;
-	op_args[16] = &attn_workspace;
+	op_args[4] = &q_seq_offsets;
+	op_args[5] = &q_seq_lens;
+	op_args[6] = &max_seqlen_q;
+	op_args[7] = &k_seq_offsets;
+	op_args[8] = &k_seq_lens;
+	op_args[9] = &max_seqlen_k;
+	op_args[10] = &num_q_heads;
+	op_args[11] = &num_kv_heads;
+	op_args[12] = &head_dim;
+	op_args[13] = &x_q;
+	op_args[14] = &x_k;
+	op_args[15] = &x_v;
+	op_args[16] = &x_attn_out;
+	op_args[17] = &softmax_lse;
+	op_args[18] = &attn_workspace;
 
 	ret = (handle -> submit_op)(handle, &attention_op, stream_id);
 	if (ret){
@@ -83,8 +85,8 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
 						DataflowDatatype bwd_dt,
 						int num_seqs, int total_q, int total_k, 
-						int * cum_q_seqlens, int max_seqlen_q,
-						int * cum_k_seqlens, int max_seqlen_k,
+						int * q_seq_offsets, int * q_seq_lens, int max_seqlen_q,
+						int * k_seq_offsets, int * k_seq_lens, int max_seqlen_k,
 						int num_q_heads, int num_kv_heads, int head_dim, 
 						void * x_q, void * x_k, void * x_v, 
 						void * x_attn_out, void * softmax_lse,
@@ -105,23 +107,25 @@ int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
 	op_args[1] = &num_seqs;
 	op_args[2] = &total_q;
 	op_args[3] = &total_k;
-	op_args[4] = &cum_q_seqlens;
-	op_args[5] = &max_seqlen_q;
-	op_args[6] = &cum_k_seqlens;
-	op_args[7] = &max_seqlen_k;
-	op_args[8] = &num_q_heads;
-	op_args[9] = &num_kv_heads;
-	op_args[10] = &head_dim;
-	op_args[11] = &x_q;
-	op_args[12] = &x_k;
-	op_args[13] = &x_v;
-	op_args[14] = &x_attn_out;
-	op_args[15] = &softmax_lse;
-	op_args[16] = &dx_out;
-	op_args[17] = &dx_q;
-	op_args[18] = &dx_k;
-	op_args[19] = &dx_v;
-	op_args[20] = &attn_bwd_workspace;
+	op_args[4] = &q_seq_offsets;
+	op_args[5] = &q_seq_lens;
+	op_args[6] = &max_seqlen_q;
+	op_args[7] = &k_seq_offsets;
+	op_args[8] = &k_seq_lens;
+	op_args[9] = &max_seqlen_k;
+	op_args[10] = &num_q_heads;
+	op_args[11] = &num_kv_heads;
+	op_args[12] = &head_dim;
+	op_args[13] = &x_q;
+	op_args[14] = &x_k;
+	op_args[15] = &x_v;
+	op_args[16] = &x_attn_out;
+	op_args[17] = &softmax_lse;
+	op_args[18] = &dx_out;
+	op_args[19] = &dx_q;
+	op_args[20] = &dx_k;
+	op_args[21] = &dx_v;
+	op_args[22] = &attn_bwd_workspace;
 
 	ret = (handle -> submit_op)(handle, &attention_bwd_op, stream_id);
 	if (ret){

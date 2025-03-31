@@ -81,7 +81,7 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	int num_args = 17;
+	int num_args = 19;
 
 	skeleton_header -> num_args = num_args;
 
@@ -96,37 +96,41 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	arg_dtypes[2] = DATAFLOW_INT_SCALAR;
 	// total_k
 	arg_dtypes[3] = DATAFLOW_INT_SCALAR;
-	// cum_q_seqlens
+	// q_seq_offsets
 	arg_dtypes[4] = DATAFLOW_INT;
+	// q_seq_lens
+	arg_dtypes[5] = DATAFLOW_INT;
 	// max_seqlen_q
-	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
-	// cum_k_seqlens
-	arg_dtypes[6] = DATAFLOW_INT;
+	arg_dtypes[6] = DATAFLOW_INT_SCALAR;
+	// k_seq_offsets
+	arg_dtypes[7] = DATAFLOW_INT;
+	// k_seq_lens
+	arg_dtypes[8] = DATAFLOW_INT;
 	// max_seqlen_k
-	
-	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
-	// num_q_heads
-	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
-	// num_kv_heads
 	arg_dtypes[9] = DATAFLOW_INT_SCALAR;
-	// head_dim
+
+	// num_q_heads
 	arg_dtypes[10] = DATAFLOW_INT_SCALAR;
+	// num_kv_heads
+	arg_dtypes[11] = DATAFLOW_INT_SCALAR;
+	// head_dim
+	arg_dtypes[12] = DATAFLOW_INT_SCALAR;
 	
 	// x_q
-	arg_dtypes[11] = DATAFLOW_VOID;
-	// x_k
-	arg_dtypes[12] = DATAFLOW_VOID;
-	// x_v
 	arg_dtypes[13] = DATAFLOW_VOID;
+	// x_k
+	arg_dtypes[14] = DATAFLOW_VOID;
+	// x_v
+	arg_dtypes[15] = DATAFLOW_VOID;
 
 	
 	// x_attn_out
-	arg_dtypes[14] = DATAFLOW_VOID;
+	arg_dtypes[16] = DATAFLOW_VOID;
 	// softmax_lse
-	arg_dtypes[15] = DATAFLOW_VOID;
+	arg_dtypes[17] = DATAFLOW_VOID;
 
 	// attn_workspace
-	arg_dtypes[16] = DATAFLOW_VOID;
+	arg_dtypes[18] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;
@@ -149,7 +153,7 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	int num_args = 21;
+	int num_args = 23;
 
 	skeleton_header -> num_args = num_args;
 
@@ -164,47 +168,51 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	arg_dtypes[2] = DATAFLOW_INT_SCALAR;
 	// total_k
 	arg_dtypes[3] = DATAFLOW_INT_SCALAR;
-	// cum_q_seqlens
+	// q_seq_offsets
 	arg_dtypes[4] = DATAFLOW_INT;
+	// q_seq_lens
+	arg_dtypes[5] = DATAFLOW_INT;
 	// max_seqlen_q
-	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
-	// cum_k_seqlens
-	arg_dtypes[6] = DATAFLOW_INT;
+	arg_dtypes[6] = DATAFLOW_INT_SCALAR;
+	// k_seq_offsets
+	arg_dtypes[7] = DATAFLOW_INT;
+	// k_seq_lens
+	arg_dtypes[8] = DATAFLOW_INT;
 	// max_seqlen_k
-	
-	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
-	// num_q_heads
-	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
-	// num_kv_heads
 	arg_dtypes[9] = DATAFLOW_INT_SCALAR;
-	// head_dim
+
+	// num_q_heads
 	arg_dtypes[10] = DATAFLOW_INT_SCALAR;
+	// num_kv_heads
+	arg_dtypes[11] = DATAFLOW_INT_SCALAR;
+	// head_dim
+	arg_dtypes[12] = DATAFLOW_INT_SCALAR;
 	
 	// x_q
-	arg_dtypes[11] = DATAFLOW_VOID;
-	// x_k
-	arg_dtypes[12] = DATAFLOW_VOID;
-	// x_v
 	arg_dtypes[13] = DATAFLOW_VOID;
+	// x_k
+	arg_dtypes[14] = DATAFLOW_VOID;
+	// x_v
+	arg_dtypes[15] = DATAFLOW_VOID;
 
 	
 	// x_attn_out
-	arg_dtypes[14] = DATAFLOW_VOID;
+	arg_dtypes[16] = DATAFLOW_VOID;
 	// softmax_lse
-	arg_dtypes[15] = DATAFLOW_VOID;
+	arg_dtypes[17] = DATAFLOW_VOID;
 
 	// dx_out (upstream gradient)
-	arg_dtypes[16] = DATAFLOW_VOID;
+	arg_dtypes[18] = DATAFLOW_VOID;
 
 	// dx_q
-	arg_dtypes[17] = DATAFLOW_VOID;
-	// dx_k
-	arg_dtypes[18] = DATAFLOW_VOID;
-	// dx_v
 	arg_dtypes[19] = DATAFLOW_VOID;
+	// dx_k
+	arg_dtypes[20] = DATAFLOW_VOID;
+	// dx_v
+	arg_dtypes[21] = DATAFLOW_VOID;
 
 	// attn_bwd_workspace
-	arg_dtypes[20] = DATAFLOW_VOID;
+	arg_dtypes[22] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;

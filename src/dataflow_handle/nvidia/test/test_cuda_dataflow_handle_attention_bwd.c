@@ -66,6 +66,7 @@ int main(int argc, char * argv[]){
 
 	int num_seqs = 1;
 
+	
 	size_t offsets_size = (num_seqs + 1) * sizeof(int);
 	size_t lens_size = num_seqs * sizeof(int);
 
@@ -223,6 +224,7 @@ int main(int argc, char * argv[]){
 
 	printf("Saving orig seqlen metadata and X_q, X_k, X_v matrices...\n");
 
+	
 	char * q_seq_offsets_filename = "test_attention/q_seq_offsets.dat";
 	char * q_seq_lens_filename = "test_attention/q_seq_lens.dat";
 

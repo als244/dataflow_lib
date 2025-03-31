@@ -195,27 +195,32 @@ int main(int argc, char * argv[]){
 
 	int num_seqs = 1;
 
-	size_t cum_seqlens_q_size = (num_seqs + 1) * sizeof(int);
-	size_t seqlens_kv_size = num_seqs * sizeof(int);
+	size_t offsets_size = (num_seqs + 1) * sizeof(int);
+	size_t lens_size = num_seqs * sizeof(int);
 
-	void * cum_seqlens_q = w3 + w3_size;
-	void * seqlens_kv = cum_seqlens_q + cum_seqlens_q_size;
+	void * q_seq_offsets = w3 + w3_size;
+	void * q_seq_lens = q_seq_offsets + offsets_size;
+
+	void * k_seq_offsets = q_seq_lens + lens_size;
+	void * k_seq_lens = k_seq_offsets + offsets_size;
 
 	// Harcoding for now
-	int q_seqlens[] = {4096};
+	int q_seqlens[] = {512};
 	int total_q = 0;
 	int max_seqlen_q = 0;
 
 	
-	int kv_seqlens[] = {4096};
+	int kv_seqlens[] = {512};
 	int total_kv = 0;
 	int max_seqlen_kv = 0;
 
-	int * cum_seqlens_q_casted = (int *) cum_seqlens_q;
-	int * seqlens_kv_casted = (int *) seqlens_kv;
+	int * q_seq_offsets_casted = (int *) q_seq_offsets;
+	int * q_seq_lens_casted = (int *) q_seq_lens;
+	int * k_seq_offsets_casted = (int *) k_seq_offsets;
+	int * k_seq_lens_casted = (int *) k_seq_lens;
 
 	// hardcoding to 
-	cum_seqlens_q_casted[0] = 0;
+	q_seq_offsets_casted[0] = 0;
 
 	int cur_len = 0;
 
@@ -223,17 +228,24 @@ int main(int argc, char * argv[]){
 	// Ensuring to set values properly within pinned buffer
 	// to avoid implicit sync during data transfer
 	for (int i = 0; i < num_seqs; i++){
-		cum_seqlens_q_casted[i + 1] = cur_len + q_seqlens[i];
-		
+		q_seq_offsets_casted[i + 1] = cur_len + q_seqlens[i];
+		q_seq_lens_casted[i] = q_seqlens[i];
 		if (q_seqlens[i] > max_seqlen_q){
 			max_seqlen_q = q_seqlens[i];
 		}
+
+
 		total_q += q_seqlens[i];
 		cur_len += q_seqlens[i];
 	}
 
+	cur_len = 0;
+
+	k_seq_offsets_casted[0] = 0;
+
 	for (int i = 0; i < num_seqs; i++){
-		seqlens_kv_casted[i] = kv_seqlens[i];
+		k_seq_offsets_casted[i + 1] = cur_len + kv_seqlens[i];
+		k_seq_lens_casted[i] = kv_seqlens[i];
 		if (kv_seqlens[i] > max_seqlen_kv){
 			max_seqlen_kv = kv_seqlens[i];
 		}
@@ -242,7 +254,7 @@ int main(int argc, char * argv[]){
 
 	size_t seq_positions_size = total_q * sizeof(int);
 
-	void * seq_positions = seqlens_kv + seqlens_kv_size;
+	void * seq_positions = k_seq_lens + lens_size;
 
 	int * seq_positions_casted = (int *) seq_positions;
 
@@ -373,10 +385,12 @@ int main(int argc, char * argv[]){
 	void * d_w2 = d_w1 + w1_size;
 	void * d_w3 = d_w2 + w2_size;
 
-	void * d_cum_seqlens_q = d_w3 + w3_size;
-	void * d_seqlens_kv = d_cum_seqlens_q + cum_seqlens_q_size;
+	void * d_q_seq_offsets = d_w3 + w3_size;
+	void * d_q_seq_lens = d_q_seq_offsets + offsets_size;
+	void * d_k_seq_offsets = d_q_seq_lens + lens_size;
+	void * d_k_seq_lens = d_k_seq_offsets + offsets_size;
 
-	void * d_seq_positions = d_seqlens_kv + seqlens_kv_size;
+	void * d_seq_positions = d_k_seq_lens + lens_size;
 
 	void * d_attn_norm_weighted_sums = d_seq_positions + seq_positions_size;
 	void * d_attn_norm_rms_vals = d_attn_norm_weighted_sums + weighted_sums_size;
@@ -485,15 +499,27 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_cum_seqlens_q, cum_seqlens_q, cum_seqlens_q_size);
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_q_seq_offsets, q_seq_offsets, offsets_size);
 	if (ret){
-		fprintf(stderr, "Error: host to device transfer failed for cum_seqlens_q...\n");
+		fprintf(stderr, "Error: host to device transfer failed for q_seq_offsets...\n");
 		return -1;
 	}
 
-	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_seqlens_kv, seqlens_kv, seqlens_kv_size);
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_q_seq_lens, q_seq_lens, lens_size);
 	if (ret){
-		fprintf(stderr, "Error: host to device transfer failed for seqlens_k...\n");
+		fprintf(stderr, "Error: host to device transfer failed for q_seq_lens...\n");
+		return -1;
+	}
+
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_k_seq_offsets, k_seq_offsets, offsets_size);
+	if (ret){
+		fprintf(stderr, "Error: host to device transfer failed for k_seq_offsets...\n");
+		return -1;
+	}
+
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_k_seq_lens, k_seq_lens, lens_size);
+	if (ret){
+		fprintf(stderr, "Error: host to device transfer failed for k_seq_lens...\n");
 		return -1;
 	}
 
@@ -600,8 +626,8 @@ int main(int argc, char * argv[]){
 	ret = submit_attention(&cuda_dataflow_handle, compute_stream_id_a,
 						 fwd_dt, 
 						 num_seqs, total_q, total_kv,
-						 d_cum_seqlens_q, max_seqlen_q,
-						 d_seqlens_kv, max_seqlen_kv,
+						 d_q_seq_offsets, d_q_seq_lens, max_seqlen_q,
+						 d_k_seq_offsets, d_k_seq_lens, max_seqlen_kv,
 						 num_q_heads, num_kv_heads, head_dim,
 						 d_wq_out, d_wk_out, d_wv_out,
 						 d_attn_out, d_attn_softmax_lse, 

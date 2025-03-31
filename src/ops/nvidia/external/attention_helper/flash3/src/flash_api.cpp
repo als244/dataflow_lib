@@ -426,8 +426,8 @@ extern "C" {
                         int arch, int num_sm,
                         int flash_dtype_as_int,
                         int num_seqs, int total_q, int total_k,
-                        int * cum_q_seqlens, int max_seqlen_q,
-                        int * cum_k_seqlens, int max_seqlen_k,
+                        int * q_seq_offsets, int * q_seq_lens, int max_seqlen_q,
+                        int * k_seq_offsets, int * k_seq_lens, int max_seqlen_k,
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
                         void * x_attn_out, void * softmax_lse) {
@@ -487,14 +487,14 @@ extern "C" {
 
         params.v_dim_stride = 1;
 
-        params.cu_seqlens_q = cum_q_seqlens;
-        params.cu_seqlens_k = cum_k_seqlens;
+        params.cu_seqlens_q = q_seq_offsets;
+        params.cu_seqlens_k = k_seq_offsets;
         params.cu_seqlens_knew = NULL;
         params.leftpad_k = NULL;
 
 
-        params.seqused_q = NULL;
-        params.seqused_k = NULL;
+        params.seqused_q = q_seq_lens;
+        params.seqused_k = k_seq_lens;
 
         params.knew_ptr = NULL;
         params.vnew_ptr = NULL;
@@ -614,8 +614,8 @@ extern "C" {
     int flash3_fwd_wrapper(CUstream stream, int arch, int num_sm,
                         int flash_dtype_as_int,
                         int num_seqs, int total_q, int total_k,
-                        int * cum_q_seqlens, int max_seqlen_q,
-                        int * cum_k_seqlens, int max_seqlen_k,
+                        int * q_seq_offsets, int * q_seq_lens, int max_seqlen_q,
+                        int * k_seq_offsets, int * k_seq_lens, int max_seqlen_k,
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
                         void * x_attn_out, void * softmax_lse,
@@ -631,8 +631,8 @@ extern "C" {
                                     arch, num_sm,
                                     flash_dtype_as_int,
                                     num_seqs, total_q, total_k,
-                                    cum_q_seqlens, max_seqlen_q,
-                                    cum_k_seqlens, max_seqlen_k,
+                                    q_seq_offsets, q_seq_lens, max_seqlen_q,
+                                    k_seq_offsets, k_seq_lens, max_seqlen_k,
                                     num_q_heads, num_kv_heads, head_dim,
                                     x_q, x_k, x_v,
                                     x_attn_out, softmax_lse);
@@ -676,8 +676,8 @@ extern "C" {
     int flash3_bwd_wrapper(CUstream stream, int arch, int num_sm,
                             int flash_dtype_as_int, 
                             int num_seqs, int total_q, int total_k, 
-                            int * cum_q_seqlens, int max_seqlen_q,
-                            int * cum_k_seqlens, int max_seqlen_k,
+                            int * q_seq_offsets, int * q_seq_lens, int max_seqlen_q,
+                            int * k_seq_offsets, int * k_seq_lens, int max_seqlen_k,
                             int num_q_heads, int num_kv_heads, int head_dim, 
                             void * x_q, void * x_k, void * x_v, 
                             void * x_attn_out, void * softmax_lse, 
@@ -704,8 +704,8 @@ extern "C" {
                                     arch, num_sm,
                                     flash_dtype_as_int,
                                     num_seqs, total_q, total_k,
-                                    cum_q_seqlens, max_seqlen_q,
-                                    cum_k_seqlens, max_seqlen_k,
+                                    q_seq_offsets, q_seq_lens, max_seqlen_q,
+                                    k_seq_offsets, k_seq_lens, max_seqlen_k,
                                     num_q_heads, num_kv_heads, head_dim,
                                     x_q, x_k, x_v,
                                     x_attn_out, softmax_lse);
