@@ -205,12 +205,12 @@ int main(int argc, char * argv[]){
 	void * k_seq_lens = k_seq_offsets + offsets_size;
 
 	// Harcoding for now
-	int q_seqlens[] = {512};
+	int q_seqlens[] = {4096};
 	int total_q = 0;
 	int max_seqlen_q = 0;
 
 	
-	int kv_seqlens[] = {512};
+	int kv_seqlens[] = {4096};
 	int total_kv = 0;
 	int max_seqlen_kv = 0;
 
