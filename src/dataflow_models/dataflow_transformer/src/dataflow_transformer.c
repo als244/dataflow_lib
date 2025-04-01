@@ -343,6 +343,9 @@ int bind_transformer_block(void * buffer, Transformer_Block * transformer_block)
 // }
 
 
+// ALL BAKED INTO 1 Large Function for now,
+// but really should have subfunctions to do norms, attn, and mlp based on transformer block config...!
+
 int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * X, Transformer_Block * transformer_block, Transformer_Block_Activations * activations) {
 
 	int ret;
@@ -509,7 +512,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					total_q, model_dim, ffn_dim,
 					1.0, 0.0,
 					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_1, NULL, activations -> x_1);
+					activations -> x_temp, transformer_block -> w_1, NULL, (activations -> x_1)[0]);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w1 matmul proj...\n");
@@ -522,7 +525,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					total_q, model_dim, ffn_dim,
 					1.0, 0.0,
 					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_3, NULL, activations -> x_3);
+					activations -> x_temp, transformer_block -> w_3, NULL, (activations -> x_3)[0]);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w3 matmul proj...\n");
@@ -552,7 +555,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					total_q, ffn_dim, model_dim,
 					1.0, 1.0,
 					workspaceBytes, workspace,
-					activations -> x_temp_mlp, transformer_block -> w_2, activations -> x_o, activations -> x_2);
+					activations -> x_temp_mlp, transformer_block -> w_2, activations -> x_o, activations -> x_layer_out);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w2 matmul proj...\n");

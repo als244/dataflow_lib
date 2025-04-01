@@ -165,6 +165,7 @@ typedef struct transformer_block_activations {
 	void ** x_1;
 	void ** x_2;
 	void ** x_3;
+	void * x_layer_out;
 
 	// used as temporary buffer during
 	// norm outputs and attention output
