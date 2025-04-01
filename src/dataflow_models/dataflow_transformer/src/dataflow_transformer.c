@@ -446,7 +446,13 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 
 	printf("Submitting Attention...!\n");
 
-	
+	// ensure workspace is zerod out beforehand....
+
+	ret = (dataflow_handle -> set_mem)(dataflow_handle, workspace, 0, workspaceBytes);
+	if (ret){
+		fprintf(stderr, "Error: unable to set attention workspace mem to 0 before submitting...\n");
+		return -1;
+	}
 
 	void * q_seq_offsets = (activations -> config).q_seq_offsets;
 	void * q_seq_lens = (activations -> config).q_seq_lens;
@@ -464,7 +470,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 						 num_q_heads, num_kv_heads, head_dim,
 						 activations -> x_q, activations -> x_k_local, activations -> x_v_local,
 						 activations -> x_temp, activations -> softmax_lse, 
-						 workspace);
+						 workspaceBytes, workspace);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit attention...\n");
 		return -1;

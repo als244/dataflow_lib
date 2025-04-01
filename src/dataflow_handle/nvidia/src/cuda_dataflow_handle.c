@@ -295,6 +295,33 @@ void cuda_free_mem(Dataflow_Handle * dataflow_handle, void * dev_ptr){
 	return;
 }
 
+int cuda_set_mem(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_ptr, uint8_t val, uint64_t size_bytes){
+
+	int ret;
+
+	if (stream_id == -1) {
+
+		ret = cu_set_mem_blocking(dev_ptr, val, size_bytes);
+		if (ret){
+			fprintf(stderr, "Error: was unable to set memory for device ptr of %p of %lu bytes...\n", dev_ptr, size_bytes);
+			return -1;
+		}
+
+		return 0;
+	}
+
+	CUstream * cu_streams = (CUstream *) dataflow_handle -> streams;
+	CUstream stream = cu_streams[stream_id];
+
+	ret = cu_set_mem(stream, dev_ptr, val, size_bytes);
+	if (ret){
+		fprintf(stderr, "Error: was unable to set memory for device ptr of %p of %lu bytes...\n", dev_ptr, size_bytes);
+		return -1;
+	}
+	return 0;
+
+}
+
 
 // PAGE-LOCKS THE HOST MEMORY...use sparingly...
 // Makes this context know that host memory is pinned...
@@ -859,6 +886,7 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 	// Memory Functionality
 	dataflow_handle -> alloc_mem = &cuda_alloc_mem;
 	dataflow_handle -> free_mem = &cuda_free_mem;
+	dataflow_handle -> set_mem = &cuda_set_mem;
 	dataflow_handle -> enable_access_to_host_mem = &cuda_enable_access_to_host_mem;
 	dataflow_handle -> disable_access_to_host_mem = &cuda_disable_access_to_host_mem;
 	dataflow_handle -> enable_access_to_peer_mem = &cuda_enable_access_to_peer_mem;

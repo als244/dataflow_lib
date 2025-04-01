@@ -352,6 +352,39 @@ int cu_free_mem(void * dev_ptr){
 
 }
 
+int cu_set_mem_blocking(void * dev_ptr, uint8_t val, uint64_t size_bytes){
+
+	CUresult result;
+	const char * err;
+
+	result = cuMemsetD8((CUdeviceptr) dev_ptr, val, size_bytes);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+		fprintf(stderr, "Error: unable to call cuMemsetD8. Err: %s\n", err);
+		return -1;
+	}
+
+	return 0;
+
+}
+
+
+int cu_set_mem(CUstream stream, void * dev_ptr, uint8_t val, uint64_t size_bytes){
+
+	CUresult result;
+	const char * err;
+
+	result = cuMemsetD8Async((CUdeviceptr) dev_ptr, val, size_bytes, stream);
+	if (result != CUDA_SUCCESS){
+		cuGetErrorString(result, &err);
+		fprintf(stderr, "Error: unable to call cuMemsetD8Async. Err: %s\n", err);
+		return -1;
+	}
+
+	return 0;
+
+}
+
 
 
 int cu_register_host_mem(void * host_mem, uint64_t size_bytes, unsigned int flags) {

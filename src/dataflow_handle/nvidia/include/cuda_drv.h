@@ -56,6 +56,9 @@ int cu_ctx_synchronize();
 int cu_alloc_mem(void ** dev_ptr_ref, uint64_t size_bytes);
 int cu_free_mem(void * dev_ptr);
 
+int cu_set_mem_blocking(void * dev_ptr, uint8_t val, uint64_t size_bytes);
+int cu_set_mem(CUstream stream, void * dev_ptr, uint8_t val, uint64_t size_bytes);
+
 
 
 int cu_register_host_mem(void * host_mem, uint64_t size_bytes, unsigned int flags);
