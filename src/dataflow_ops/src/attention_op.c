@@ -41,7 +41,7 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 						int num_q_heads, int num_kv_heads, int head_dim, 
 						void * x_q, void * x_k, void * x_v, 
 						void * x_attn_out, void * softmax_lse, 
-						void * attn_workspace) {
+						uint64_t workspaceBytes, void * workspace) {
 
 
 	int ret;
@@ -70,7 +70,8 @@ int submit_attention(Dataflow_Handle * handle, int stream_id,
 	op_args[15] = &x_v;
 	op_args[16] = &x_attn_out;
 	op_args[17] = &softmax_lse;
-	op_args[18] = &attn_workspace;
+	op_args[18] = &workspaceBytes;
+	op_args[19] = &workspace;
 
 	ret = (handle -> submit_op)(handle, &attention_op, stream_id);
 	if (ret){
@@ -92,7 +93,7 @@ int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
 						void * x_attn_out, void * softmax_lse,
 						void * dx_out,
 						void * dx_q, void * dx_k, void * dx_v, 
-						void * attn_bwd_workspace) {
+						uint64_t workspaceBytes, void * workspace) {
 
 
 	int ret;
@@ -125,7 +126,8 @@ int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
 	op_args[19] = &dx_q;
 	op_args[20] = &dx_k;
 	op_args[21] = &dx_v;
-	op_args[22] = &attn_bwd_workspace;
+	op_args[22] = &workspaceBytes;
+	op_args[23] = &workspace;
 
 	ret = (handle -> submit_op)(handle, &attention_bwd_op, stream_id);
 	if (ret){

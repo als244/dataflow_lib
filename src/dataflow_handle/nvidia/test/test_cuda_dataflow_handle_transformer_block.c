@@ -628,7 +628,7 @@ int main(int argc, char * argv[]){
 						 num_q_heads, num_kv_heads, head_dim,
 						 d_wq_out, d_wk_out, d_wv_out,
 						 d_attn_out, d_attn_softmax_lse, 
-						 d_attn_workspace);
+						 workspaceBytes, d_attn_workspace);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit attention...\n");
 		return -1;

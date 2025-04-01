@@ -46,7 +46,7 @@ int flash3_fwd_wrapper(CUstream stream, int arch, int num_sm,
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
                         void * x_attn_out, void * softmax_lse,
-                        void * attn_workspace);
+                        uint64_t workspaceBytes, void * workspace);
 
 
 
@@ -111,6 +111,6 @@ int flash3_bwd_wrapper(CUstream stream, int arch, int num_sm,
                             void * x_attn_out, void * softmax_lse, 
                             void * dx_out, 
                             void * dx_q, void * dx_k, void * dx_v,
-                            void * attn_bwd_workspace);
+                            uint64_t workspaceBytes, void * workspace);
 
 #endif

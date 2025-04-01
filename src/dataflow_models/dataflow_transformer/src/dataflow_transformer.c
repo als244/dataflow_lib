@@ -1,13 +1,13 @@
 #include "dataflow_transformer.h"
 
-static void set_weight_offset(uint64_t * cur_w_offset, uint64_t cur_w_buffer_size, uint64_t * raw_size, uint64_t * aligned_size, int pointer_alignment){
+static void set_offset(uint64_t * cur_offset, uint64_t cur_size, uint64_t * raw_size, uint64_t * aligned_size, int pointer_alignment){
 
 	// set it equal to current aligned size
-	*cur_w_offset = *aligned_size;
+	*cur_offset = *aligned_size;
 
 	// now increment raw size and aligned size
-	*raw_size += cur_w_buffer_size;
-	*aligned_size += cur_w_buffer_size;
+	*raw_size += cur_size;
+	*aligned_size += cur_size;
 
 	*aligned_size += pointer_alignment - (*aligned_size % pointer_alignment);
 
@@ -121,15 +121,15 @@ static int set_transformer_block_weight_offsets(Transformer_Block_Config * confi
 		return -1;
 	}
 
-	set_weight_offset(&(weight_offsets -> w_attn_norm), w_norm_size, &raw_size, &aligned_size, pointer_alignment);
-	set_weight_offset(&(weight_offsets -> w_q), w_q_size, &raw_size, &aligned_size, pointer_alignment);
-	set_weight_offset(&(weight_offsets -> w_k), w_k_size, &raw_size, &aligned_size, pointer_alignment);
-	set_weight_offset(&(weight_offsets -> w_v), w_v_size, &raw_size, &aligned_size, pointer_alignment);
-	set_weight_offset(&(weight_offsets -> w_o), w_o_size, &raw_size, &aligned_size, pointer_alignment);
-	set_weight_offset(&(weight_offsets -> w_ffn_norm), w_norm_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_attn_norm), w_norm_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_q), w_q_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_k), w_k_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_v), w_v_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_o), w_o_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_ffn_norm), w_norm_size, &raw_size, &aligned_size, pointer_alignment);
 
 	// For non-MoE this will have size = 0 => same offset as w_ffn_norm => w_router poitner set to null
-	set_weight_offset(&(weight_offsets -> w_router), w_router_size, &raw_size, &aligned_size, pointer_alignment);
+	set_offset(&(weight_offsets -> w_router), w_router_size, &raw_size, &aligned_size, pointer_alignment);
 
 	// now set all w_1, w_2, w_3
 	// use ordering of w_1, w_3, and w_2 for
@@ -137,9 +137,9 @@ static int set_transformer_block_weight_offsets(Transformer_Block_Config * confi
 	// but grouping expert all in same region
 
 	for (int i = 0; i < num_local_experts; i++){
-		set_weight_offset(&((weight_offsets -> w_1)[i]), w_1_size, &raw_size, &aligned_size, pointer_alignment);
-		set_weight_offset(&((weight_offsets -> w_3)[i]), w_3_size, &raw_size, &aligned_size, pointer_alignment);
-		set_weight_offset(&((weight_offsets -> w_2)[i]), w_2_size, &raw_size, &aligned_size, pointer_alignment);
+		set_offset(&((weight_offsets -> w_1)[i]), w_1_size, &raw_size, &aligned_size, pointer_alignment);
+		set_offset(&((weight_offsets -> w_3)[i]), w_3_size, &raw_size, &aligned_size, pointer_alignment);
+		set_offset(&((weight_offsets -> w_2)[i]), w_2_size, &raw_size, &aligned_size, pointer_alignment);
 	}
 
 	*ret_raw_size = raw_size;
@@ -566,6 +566,37 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	return 0;
 
 }
+
+int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX, Transformer_Block * transformer_block, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations) {
+
+	int ret;
+
+
+	DataflowDatatype fwd_dt = (transformer_block -> config).block_dt;
+	DataflowDatatype compute_dt = (transformer_block -> config).compute_dt;
+
+	int num_seqs = (activations -> config).num_seqs;
+	int total_q = (activations -> config).total_q;
+	int total_k = (activations -> config).total_k;
+
+	
+	int model_dim = (transformer_block -> config).model_dim;
+	int kv_dim = (transformer_block -> config).kv_dim;
+
+	
+	uint64_t workspaceBytes = (activations -> config).workspaceBytes;
+	void * workspace = (activations -> config).workspace;
+
+
+	return 0;
+
+}
+
+int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id, Transformer_Block * transformer_block, Transformer_Block_Activations * grad_activations, Transformer_Block * grad_weights) {
+
+}
+
+
 
 
 

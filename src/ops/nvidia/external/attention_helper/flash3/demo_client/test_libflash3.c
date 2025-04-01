@@ -169,10 +169,10 @@ int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes
 				void ** k_seq_offsets, void ** k_seq_lens, int max_seqlen_k,
 				void ** x_q, void  ** x_k, void ** x_v, 
 				void ** x_attn_out, void ** softmax_lse,
-				void ** attn_workspace,
+				void ** attn_workspace, uint64_t * ret_attn_workspace_size,
 				void ** dx_out,
 				void ** dx_q, void ** dx_k, void ** dx_v,
-				void ** attn_bwd_workspace){
+				void ** attn_bwd_workspace, uint64_t * ret_attn_bwd_workspace_size){
 
 	CUresult result;
 	const char * err;
@@ -342,6 +342,8 @@ int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes
 	// covert potential dynamic split
 	attn_workspace_size += num_seqs * sizeof(int);
 
+	*ret_attn_workspace_size = attn_workspace_size;
+
 	result = cuMemAlloc((CUdeviceptr *) attn_workspace, attn_workspace_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
@@ -375,6 +377,9 @@ int reserve_dev_memory(int total_q, int total_k, int num_seqs, size_t x_dt_bytes
 
 	attn_bwd_workspace_size = softmax_workspace + dq_accum_workspace + dq_sem_workspace + dkv_accum_workspace + dkv_sem_workspace; 
 	
+
+	*ret_attn_bwd_workspace_size = attn_bwd_workspace_size;
+
 	result = cuMemAlloc((CUdeviceptr *) attn_bwd_workspace, attn_bwd_workspace_size);
 	if (result != CUDA_SUCCESS){
 		cuGetErrorString(result, &err);
@@ -712,16 +717,19 @@ int main (int argc, char * argv[]){
 
 	void * attn_bwd_workspace;
 
+	uint64_t attn_workspace_size;
+	uint64_t attn_bwd_workspace_size;
+
 	ret = reserve_dev_memory(total_q, total_k, num_seqs, x_dt_bytes, 
 					num_q_heads, num_kv_heads, head_dim, 
 					&q_seq_offsets, &q_seq_lens, max_seqlen_q,
 					&k_seq_offsets, &k_seq_lens, max_seqlen_k,
 					&x_q, &x_k, &x_v, 
 					&x_attn_out, &softmax_lse, 
-					&attn_workspace,
+					&attn_workspace, &attn_workspace_size,
 					&dx_out,
 					&dx_q, &dx_k, &dx_v,
-					&attn_bwd_workspace);
+					&attn_bwd_workspace, &attn_bwd_workspace_size);
 	if (ret){
 		fprintf(stderr, "Error: could not reserve device memory...\n");
 		return -1;
@@ -762,7 +770,7 @@ int main (int argc, char * argv[]){
 					num_q_heads, num_kv_heads, head_dim,
 					x_q, x_k, x_v, 
 					x_attn_out, softmax_lse,  
-					attn_workspace);
+					attn_workspace_size, attn_workspace);
 	if (ret){
 		fprintf(stderr, "Error: submitting flash3 fwd failed...\n");
 		return -1;
@@ -785,7 +793,7 @@ int main (int argc, char * argv[]){
 					x_attn_out, softmax_lse,  
 					dx_out,
 					dx_q, dx_k, dx_v,
-					attn_bwd_workspace);
+					attn_bwd_workspace_size, attn_bwd_workspace);
 
 	printf("Submitting backward pass...\n");
 	if (ret){

@@ -619,7 +619,7 @@ extern "C" {
                         int num_q_heads, int num_kv_heads, int head_dim,
                         void * x_q, void * x_k, void * x_v,
                         void * x_attn_out, void * softmax_lse,
-                        void * attn_workspace) {
+                        uint64_t workspaceBytes, void * workspace) {
 
         
         int ret;
@@ -645,9 +645,14 @@ extern "C" {
 
 
         uint64_t used_workspace_size = 0;
-        ret = set_flash3_fwd_workspace(params, attn_workspace, &used_workspace_size);
+        ret = set_flash3_fwd_workspace(params, workspace, &used_workspace_size);
         if (ret){
             fprintf(stderr, "Error: setting flash3_fwd params failed...\n");
+            return -1;
+        }
+
+        if (used_workspace_size > workspaceBytes){
+            fprintf(stderr, "Error: attention fwd failed because not enough workspace. Supplied %lu bytes, but requires %lu...\n", workspaceBytes, used_workspace_size);
             return -1;
         }
 
@@ -683,7 +688,7 @@ extern "C" {
                             void * x_attn_out, void * softmax_lse, 
                             void * dx_out, 
                             void * dx_q, void * dx_k, void * dx_v,
-                            void * attn_bwd_workspace) {
+                            uint64_t workspaceBytes, void * workspace) {
         
 
         // ensure valid datatype...
@@ -746,9 +751,14 @@ extern "C" {
 
 
         uint64_t used_workspace_size = 0;
-        ret = set_flash3_bwd_workspace(params, attn_bwd_workspace, &used_workspace_size);
+        ret = set_flash3_bwd_workspace(params, workspace, &used_workspace_size);
         if (ret){
             fprintf(stderr, "Error: setting flash3 bwd workspace failed...\n");
+            return -1;
+        }
+
+        if (used_workspace_size > workspaceBytes){
+            fprintf(stderr, "Error: attention bwd failed because not enough workspace. Supplied %lu bytes, but requires %lu...\n", workspaceBytes, used_workspace_size);
             return -1;
         }
 

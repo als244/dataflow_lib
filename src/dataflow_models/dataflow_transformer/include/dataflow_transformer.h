@@ -220,5 +220,9 @@ int bind_transformer_block(void * buffer, Transformer_Block * transformer_block)
 
 int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * X, Transformer_Block * transformer_block, Transformer_Block_Activations * activations);
 
+int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX, Transformer_Block * transformer_block, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations);
+
+int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id, Transformer_Block * transformer_block, Transformer_Block_Activations * grad_activations, Transformer_Block * grad_weights);
+
 
 #endif

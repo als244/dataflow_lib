@@ -81,7 +81,7 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	int num_args = 19;
+	int num_args = 20;
 
 	skeleton_header -> num_args = num_args;
 
@@ -129,8 +129,11 @@ void set_external_flash3_attention_fwd_skeleton(Op_Skeleton * skeleton) {
 	// softmax_lse
 	arg_dtypes[17] = DATAFLOW_VOID;
 
+	// workspaceBytes 
+	arg_dtypes[18] = DATAFLOW_UINT64_SCALAR;
+
 	// attn_workspace
-	arg_dtypes[18] = DATAFLOW_VOID;
+	arg_dtypes[19] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;
@@ -153,7 +156,7 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
 
-	int num_args = 23;
+	int num_args = 24;
 
 	skeleton_header -> num_args = num_args;
 
@@ -211,8 +214,11 @@ void set_external_flash3_attention_bwd_skeleton(Op_Skeleton * skeleton) {
 	// dx_v
 	arg_dtypes[21] = DATAFLOW_VOID;
 
+	// workspaceBytes
+	arg_dtypes[22] = DATAFLOW_UINT64_SCALAR;
+
 	// attn_bwd_workspace
-	arg_dtypes[22] = DATAFLOW_VOID;
+	arg_dtypes[23] = DATAFLOW_VOID;
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){
 		arg_dtypes[i] = DATAFLOW_NONE;
