@@ -448,7 +448,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 
 	// ensure workspace is zerod out beforehand....
 
-	ret = (dataflow_handle -> set_mem)(dataflow_handle, workspace, 0, workspaceBytes);
+	ret = (dataflow_handle -> set_mem)(dataflow_handle, compute_stream_id, workspace, 0, workspaceBytes);
 	if (ret){
 		fprintf(stderr, "Error: unable to set attention workspace mem to 0 before submitting...\n");
 		return -1;
