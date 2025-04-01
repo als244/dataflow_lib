@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g
+CFLAGS = -g -fPIC
 
 PROJ_INCLUDE_DIR = ../../include
 DATAFLOW_HANDLE_INCLUDE_DIR = ../dataflow_handle/include
