@@ -199,15 +199,46 @@ int main(int argc, char * argv[]){
 	}
 
 
+
 	printf("Submitting matmul op...!\n");
+
+	// Assume weights are in col-major format.
+
+	// But we want to process activations in row-major
+
+	// Note that matmul interface assumes col-major storage format
+
+	// Also note that FP8 tensor cores only available in TN format
+
+	// During FWD pass we normally want:
+
+
+	// Thus to compute Y = X @ W, 
+	// we can do Y^T = W^T @ X^T
+	// where from matmul perspective ^T means we interpret as row-major
+	// However we store W as col-major so we need to transpose it.
+
+	// Also for M, K, N (assuming X: (m, k), W (k, n))
+	// we set M = n, K = k, N = m
+
+	// The BWD pass is different because if we want dX's to be in row major we need:
+
+	// dX = dY @ W^T
+	// => dX^T = W @ dY^T
+
+	// so if we store W in col-major format we shouldn't transpose it...
+
+	int to_trans_a = 1;
+	int to_trans_b = 0;
 
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a,
 						 a_dt, b_dt, DATAFLOW_NONE, d_dt, 
 						 compute_dt,
+						 to_trans_a, to_trans_b,
 						 iM, iK, iN,
 						 alpha, beta,
-						 workspaceBytes, d_workspace,
-						 d_a_matrix, d_b_matrix, NULL, d_d_matrix);
+						 d_a_matrix, d_b_matrix, NULL, d_d_matrix,
+						 workspaceBytes, d_workspace);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit matmul...\n");
 		return -1;

@@ -21,8 +21,8 @@ int main(int argc, char * argv[]){
 	char * opt_stream_names[8] = {"Inbound (a)", "Compute (a)", "Outbound (a)", "Peer (a)", "Inbound (b)", "Compute (b)", "Outbound (b)", "Peer (b)"};
 	
 	char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
-        char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
-        char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+	char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
+	char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
 
 	ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
 			ctx_id, ctx_flags, 
@@ -58,30 +58,13 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	
+	uint64_t fwd_M = 1024;
+	uint64_t fwd_K = 256;
+	uint64_t fwd_N = 512;
 
-	// Seed the random number generator with a constant value
-    srand(42);
-
-	uint64_t M = 2;
-	uint64_t K = 4;
-	uint64_t N = 3;
-
-
-	int iM = (int) M;
-	int iK = (int) K;
-	int iN = (int) N;
-
-	float mean = 0.0;
-	float std = 0.006;
-
-
-	float eps = 1e-5;
-
-	DataflowDatatype a_dt = DATAFLOW_FP16;
-	DataflowDatatype b_dt = DATAFLOW_FP16;
-	DataflowDatatype c_dt = DATAFLOW_NONE;
-	DataflowDatatype d_dt = DATAFLOW_FP16;
+	DataflowDatatype dy_dt = DATAFLOW_FP16;
+	DataflowDatatype w_dt = DATAFLOW_FP16;
+	DataflowDatatype dx_dt = DATAFLOW_FP16;
 
 	DataflowDatatype compute_dt = DATAFLOW_FP16;
 
@@ -90,61 +73,30 @@ int main(int argc, char * argv[]){
 
 	uint64_t workspaceBytes = 1UL << 22;
 
-	size_t a_el_size = dataflow_sizeof_element(a_dt);
-	size_t b_el_size = dataflow_sizeof_element(b_dt);
-	size_t d_el_size = dataflow_sizeof_element(d_dt);
+	size_t dy_el_size = dataflow_sizeof_element(dy_dt);
+	size_t w_el_size = dataflow_sizeof_element(w_dt);
+	size_t dx_el_size = dataflow_sizeof_element(dx_dt);
 
-	uint64_t a_mat_size = K * M * a_el_size;
-	uint64_t b_mat_size = K * N * b_el_size;
-	uint64_t d_mat_size = N * N * d_el_size;
+	uint64_t dy_mat_size = fwd_M * fwd_N * dy_el_size;
+	uint64_t w_mat_size = fwd_K * fwd_N * w_el_size;
+	uint64_t dx_mat_size = fwd_M * fwd_K * dx_el_size;
 
-	void * a_matrix = host_mem;
-	void * b_matrix = a_matrix + a_mat_size;
-	void * d_matrix = b_matrix + b_mat_size;
+	void * dy_matrix = host_mem;
+	void * w_matrix = dy_matrix + dy_mat_size;
+	void * dx_matrix = w_matrix + w_mat_size;
 
-	printf("Creating random A & B host matrices (M: %lu, K: %lu, N: %lu, dt: %s)...\n", M, K, N, dataflow_datatype_as_string(a_dt));
+	printf("Loading in dy and W matrices... (fwd M: %lu, fwd K: %lu, fwd N: %lu, dt: %s)...\n", fwd_M, fwd_K, fwd_N, dataflow_datatype_as_string(dx_dt));
 
-	/*
-	void * res = create_rand_host_matrix(K, M, mean, std, a_dt, a_matrix);
+	void * res = load_host_matrix_from_file("test_matmul_bwd/dy_rowmajor.dat", fwd_M, fwd_N, dy_dt, dy_dt, dy_matrix);
 	if (!res){
-		fprintf(stderr, "Error: creating random A host memory matrix failed...\n");
+		fprintf(stderr, "Error: could not load in dY matrix...\n");
 		return -1;
 	}
 
-	res = create_rand_host_matrix(K, N, mean, std, b_dt, b_matrix);
+
+	res = load_host_matrix_from_file("test_matmul_bwd/w_colmajor.dat", fwd_K, fwd_N, w_dt, w_dt, w_matrix);
 	if (!res){
-		fprintf(stderr, "Error: creating random B host memory matrix failed...\n");
-		return -1;
-	}
-	*/
-
-	void * res = create_index_identity_host_matrix(M, K, a_dt, a_matrix);
-	if (!res){
-		fprintf(stderr, "Error: creating index identity A host memory matrix failed...\n");
-		return -1;
-	}
-
-	res = create_index_identity_host_matrix(K, N, b_dt, b_matrix);
-	if (!res){
-		fprintf(stderr, "Error: creating index identity B host memory matrix failed...\n");
-		return -1;
-	}
-
-
-	printf("Saving orig A and B matrix...\n");
-
-	char * a_matrix_filename = "test_matmul/A_matrix.dat";
-	char * b_matrix_filename = "test_matmul/B_matrix.dat";
-
-	ret = save_host_matrix(a_matrix_filename, a_matrix, M, K, a_dt);
-	if (ret){
-		fprintf(stderr, "Error: failed to save A matrix...\n");
-		return -1;
-	}
-
-	ret = save_host_matrix(b_matrix_filename, b_matrix, K, N, b_dt);
-	if (ret){
-		fprintf(stderr, "Error: failed to save B matrix...\n");
+		fprintf(stderr, "Error: could not load in W matrix...\n");
 		return -1;
 	}
 
@@ -160,15 +112,16 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	void * d_a_matrix = dev_mem;
-	void * d_b_matrix = d_a_matrix + a_mat_size;
-	void * d_d_matrix = d_b_matrix + b_mat_size;
-	// need to start at multiple of 256...
-	uint64_t init_workspace_start = (uint64_t) (d_d_matrix + d_mat_size);
-	uint64_t remain = init_workspace_start % 256;
-	void * d_workspace = d_d_matrix + d_mat_size + (256 - remain);
+	void * d_dy_matrix = dev_mem;
+	void * d_w_matrix = d_dy_matrix + dy_mat_size;
+	void * d_dx_matrix = d_w_matrix + w_mat_size;
 
-	printf("Transferring A, B matrix on host to device of size: %lu and %lu...\n", a_mat_size, b_mat_size);
+	// need to start at multiple of 256...
+	uint64_t init_workspace_start = (uint64_t) (d_dx_matrix + dx_mat_size);
+	uint64_t remain = init_workspace_start % 256;
+	void * d_workspace = d_dx_matrix + dx_mat_size + (256 - remain);
+
+	printf("Transferring dY, W matrix on host to device of size: %lu and %lu...\n", dy_mat_size, w_mat_size);
 
 	int inbound_stream_id_a = 0;
 	int compute_stream_id_a = 1;
@@ -179,13 +132,13 @@ int main(int argc, char * argv[]){
 	int outbound_stream_id_b = 6;
 	int peer_stream_id_b = 7;
 
-	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_a_matrix, a_matrix, a_mat_size);
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_dy_matrix, dy_matrix, dy_mat_size);
 	if (ret){
 		fprintf(stderr, "Error: host to device transfer failed...\n");
 		return -1;
 	}
 
-	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_b_matrix, b_matrix, b_mat_size);
+	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_w_matrix, w_matrix, w_mat_size);
 	if (ret){
 		fprintf(stderr, "Error: host to device transfer failed...\n");
 		return -1;
@@ -201,47 +154,50 @@ int main(int argc, char * argv[]){
 
 
 	printf("Submitting matmul op...!\n");
-	
 
-	Op matmul_op;
+	// Assume weights are in col-major format.
 
-	set_external_matmul_skeleton(&matmul_op.op_skeleton);
+	// But we want to process activations in row-major
 
-	void ** matmul_op_args = matmul_op.op_args;
+	// Note that matmul interface assumes col-major storage format
+
+	// Also note that FP8 tensor cores only available in TN format
+
+	// During FWD pass we normally want:
 
 
-	void * d_c_matrix = NULL;
-	int num_procs = 0;
+	// Thus to compute Y = X @ W, 
+	// we can do Y^T = W^T @ X^T
+	// where from matmul perspective ^T means we interpret as row-major
+	// However we store W as col-major so we need to transpose it.
 
-	int to_trans_a = 1;
+	// Also for M, K, N (assuming X: (m, k), W (k, n))
+	// we set M = n, K = k, N = m
+
+	// The BWD pass is different because if we want dX's to be in row major we need:
+
+	// dX = dY @ W^T
+	// => dX^T = W @ dY^T
+
+	// so if we store W in col-major format we shouldn't transpose it...
+
+	// Now for bwd we set
+	// M = k, K = n, N = m
+	// where m, k, n are from fwd values of X, W, and Y
+
+	int to_trans_a = 0;
 	int to_trans_b = 0;
 
-
-	matmul_op_args[0] = &num_procs;
-	matmul_op_args[1] = &a_dt;
-	matmul_op_args[2] = &b_dt;
-	matmul_op_args[3] = &c_dt;
-	matmul_op_args[4] = &d_dt;
-	matmul_op_args[5] = &compute_dt;
-	matmul_op_args[6] = &to_trans_a;
-	matmul_op_args[7] = &to_trans_b;
-	matmul_op_args[8] = &iM;
-	matmul_op_args[9] = &iK;
-	matmul_op_args[10] = &iN;
-	matmul_op_args[11] = &alpha;
-	matmul_op_args[12] = &beta;
-	matmul_op_args[13] = &d_a_matrix;
-	matmul_op_args[14] = &d_b_matrix;
-	matmul_op_args[15] = &d_c_matrix;
-	matmul_op_args[16] = &d_d_matrix;
-	matmul_op_args[17] = &workspaceBytes;
-	matmul_op_args[18] = &d_workspace;
-	
-
-
-	ret = cuda_dataflow_handle.submit_op(&cuda_dataflow_handle, &matmul_op, compute_stream_id_a);
+	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a,
+						 w_dt, dy_dt, DATAFLOW_NONE, dx_dt, 
+						 compute_dt,
+						 to_trans_a, to_trans_b,
+						 fwd_K, fwd_N, fwd_M,
+						 alpha, beta,
+						 d_w_matrix, d_dy_matrix, NULL, d_dx_matrix,
+						 workspaceBytes, d_workspace);
 	if (ret){
-		fprintf(stderr, "Error: failed to submit op...\n");
+		fprintf(stderr, "Error: failed to submit matmul...\n");
 		return -1;
 	}
 
@@ -262,7 +218,7 @@ int main(int argc, char * argv[]){
 
 	printf("Submitting outbound transfer...\n");
 
-	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, d_matrix, d_d_matrix, d_mat_size);
+	ret = cuda_dataflow_handle.submit_outbound_transfer(&cuda_dataflow_handle, outbound_stream_id_a, dx_matrix, d_dx_matrix, dx_mat_size);
 	if (ret){
 		fprintf(stderr, "Error: could not submit outbound transfer...\n");
 		return -1;
@@ -280,9 +236,9 @@ int main(int argc, char * argv[]){
 
 	printf("Saving transformed matrix...\n");
 
-	char * d_matrix_filename = "test_matmul/D_matrix.dat";
+	char * d_matrix_filename = "test_matmul_bwd/dx_matrix.dat";
 
-	ret = save_host_matrix(d_matrix_filename, d_matrix, M, N, d_dt);
+	ret = save_host_matrix(d_matrix_filename, dx_matrix, fwd_M, fwd_K, dx_dt);
 	if (ret){
 		fprintf(stderr, "Error: failed to save output matrix...\n");
 		return -1;

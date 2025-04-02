@@ -13,19 +13,67 @@
 
 // From matmul.c
 
-// If A, C, D are all stored in Row-Major
-// And B is stored in Col-Major. If so, it compute:
-// D = alpha * AB + beta * C
 
-// If B is stored in Row-Major that implies it computes:
-// D = alpha * AB^T + beta * C
+// Operates under assumption of all col-major formatting, 
+// so can be clever about obtaining result in row major format with transposes
+
+
+// Note: FP8 Tensor cores can only be used with TN formatting
+
+// Forward pass: 
+
+// I.e. Normal Fwd Case is to compute:
+//			- X (m, k), Y (m, n) in row major
+//			- W (k, n) but stored in col major
+// Y = X @ W
+// => Y^T = W^T @ X^T
+
+// If we store W in col-major then from blas perspective
+// it needs to transpose
+
+// However if we store X in row-major then blas interprets
+// the non-transposed X as already transposed
+
+// We interpret the output (in col-major) Y^T as non-transposed Y in row-major
+
+
+// to do this can pass in W => A, X => B, Y => D
+// and set to_trans_a = 1, to_trans_b = 0
+// and also M = n, K = k, N = m
+
+// Now result is Y which is n x m in col-major, 
+// or equivalently, m x n in row-major as hoped for
+
+
+// During backprop, if we want dX to be in row-major, but are 
+// working with W stored in col-major format this is not possible
+// under "TN" constraints
+
+// I.e. Normal Bwd Case:
+//			- dY (m, n), dX (m, k) in row-major
+//			- W (k, n), but stored in col major
+// dX = dY @ W^T
+
+// => dX^T = W @ dY^T
+
+// if we store W in col-major then no transpose
+// if we store dY in row-major then no tranpose because it already interprets as transposed 
+
+// We interpret the output (in col major) of dX^T as non-transposed dX in row-major
+
+// However if we are not using FP8 tensor cores then we can achieve
+// the correct results (without physical transposes) by doing:
+
+// W => A, dY => B, dX => D
+// and set to_trans_a = 0, to_trans_b = 0
 int submit_matmul(Dataflow_Handle * handle, int stream_id, 
 					DataflowDatatype a_dt, DataflowDatatype b_dt, DataflowDatatype c_dt, DataflowDatatype d_dt,
 					DataflowDatatype compute_dt,
+					int to_trans_a, int to_trans_b,
 					int M, int K, int N,
 					float alpha, float beta,
-					uint64_t workspaceBytes, void * workspace,
-					void * A, void * B, void * C, void * D);
+					void * A, void * B, void * C, void * D,
+					uint64_t workspaceBytes, void * workspace);
 
 
 

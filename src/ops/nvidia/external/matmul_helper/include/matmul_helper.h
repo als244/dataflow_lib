@@ -16,7 +16,6 @@
 
 #include <cublasLt.h>
 
-
 typedef struct cublas_matmul_op_extra {
 	cublasLtHandle_t cublas_handle;
 } Cublas_Matmul_Op_Extra;

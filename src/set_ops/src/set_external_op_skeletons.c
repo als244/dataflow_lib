@@ -14,7 +14,7 @@ void set_external_matmul_skeleton(Op_Skeleton * skeleton) {
 	// last character must be null no matter what, if nickname is less than null bytes were added prior
 	(skeleton_header -> op_nickname)[MAX_OP_NICKNAME_SIZE] = '\0'; 
 	
-	int num_args = 17;
+	int num_args = 19;
 
 	skeleton_header -> num_args = num_args;
 
@@ -34,21 +34,22 @@ void set_external_matmul_skeleton(Op_Skeleton * skeleton) {
 	// Compute Type as DataflowDatatype (FP32, FP16, or BF16)
 	arg_dtypes[5] = DATAFLOW_INT_SCALAR;
 
-	// M
+	// to_trans_a
 	arg_dtypes[6] = DATAFLOW_INT_SCALAR;
-	// K
+	// to_trans_b
 	arg_dtypes[7] = DATAFLOW_INT_SCALAR;
-	// N
-	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
-	// alpha
-	arg_dtypes[9] = DATAFLOW_FP32_SCALAR;
-	// beta
-	arg_dtypes[10] = DATAFLOW_FP32_SCALAR;
-	// workspace bytes
-	arg_dtypes[11] = DATAFLOW_UINT64;
-	// workspace
-	arg_dtypes[12] = DATAFLOW_VOID;
 
+	// M
+	arg_dtypes[8] = DATAFLOW_INT_SCALAR;
+	// K
+	arg_dtypes[9] = DATAFLOW_INT_SCALAR;
+	// N
+	arg_dtypes[10] = DATAFLOW_INT_SCALAR;
+	// alpha
+	arg_dtypes[11] = DATAFLOW_FP32_SCALAR;
+	// beta
+	arg_dtypes[12] = DATAFLOW_FP32_SCALAR;
+	
 	// A
 	arg_dtypes[13] = DATAFLOW_VOID;
 	// B
@@ -57,6 +58,11 @@ void set_external_matmul_skeleton(Op_Skeleton * skeleton) {
 	arg_dtypes[15] = DATAFLOW_VOID;
 	// D
 	arg_dtypes[16] = DATAFLOW_VOID;
+
+	// workspace bytes
+	arg_dtypes[17] = DATAFLOW_UINT64;
+	// workspace
+	arg_dtypes[18] = DATAFLOW_VOID;
 	
 
 	for (int i = num_args; i < MAX_OP_ARGS; i++){

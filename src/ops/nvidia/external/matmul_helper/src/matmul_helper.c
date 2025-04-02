@@ -316,8 +316,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	void * C = (void *) *((uint64_t *) op_args[15]);
 	void * D = (void *) *((uint64_t *) op_args[16]);
 
-	matmul_params -> alpha_f = *((float *) op_args[9]);
-	matmul_params -> beta_f = *((float *) op_args[10]);
+	matmul_params -> alpha_f = *((float *) op_args[11]);
+	matmul_params -> beta_f = *((float *) op_args[12]);
 
 
 	// NOTE:
@@ -327,17 +327,21 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	// This means that from cuBLAS perspective (which assumes col-major) we can reverse the
 	// ordering of A and B matrices such that we will compute C^T = B^T * A^T
 
-	ret = dtype_to_cuda_dtype(b_dt, &a_cuda_dt);
+
+	ret = dtype_to_cuda_dtype(a_dt, &a_cuda_dt);
 	if (ret){
 		fprintf(stderr, "Error: unsupported A dtype of %s\n", dataflow_datatype_as_string(a_dt));
 		return -1;
 	}
 
-	ret = dtype_to_cuda_dtype(a_dt, &b_cuda_dt);
+
+	ret = dtype_to_cuda_dtype(b_dt, &b_cuda_dt);
 	if (ret){
 		fprintf(stderr, "Error: unsupported B dtype of %s\n", dataflow_datatype_as_string(b_dt));
 		return -1;
 	}
+
+	
 
 	ret = dtype_to_cuda_dtype(d_dt, &d_cuda_dt);
 	if (ret){
@@ -386,8 +390,19 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		}
 	}
 
-	cublasOperation_t transa = CUBLAS_OP_T;
+	cublasOperation_t transa = CUBLAS_OP_N;
 	cublasOperation_t transb = CUBLAS_OP_N;
+
+	int to_trans_a = *((int *) op_args[6]);
+	int to_trans_b = *((int *) op_args[7]);
+
+	if (to_trans_a){
+		transa = CUBLAS_OP_T;
+	}
+
+	if (to_trans_a){
+		transb = CUBLAS_OP_T;
+	}
 
 	status = cublasLtMatmulDescSetAttribute(matmul_params -> computeDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa));
 	if (status != CUBLAS_STATUS_SUCCESS) {
@@ -401,27 +416,47 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	}
 
 
-	int M = *((int *) op_args[6]);
-	int K = *((int *) op_args[7]);
-	int N = *((int *) op_args[8]);
+	int M = *((int *) op_args[8]);
+	int K = *((int *) op_args[9]);
+	int N = *((int *) op_args[10]);
 
 
 	// Now Adesc actually referes the B matrix. a_cuda_dt has already been set appropriately
 
-	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Adesc), a_cuda_dt, K, N, K);
-	if (status != CUBLAS_STATUS_SUCCESS) {
-		fprintf(stderr, "Error: Adesc matmul layout could not be created\n");
-		return -1;
+	if (to_trans_a){
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Adesc), a_cuda_dt, K, M, K);
+		if (status != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "Error: Adesc matmul layout could not be created\n");
+			return -1;
+		}
+	}
+	else{
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Adesc), a_cuda_dt, M, K, M);
+		if (status != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "Error: Adesc matmul layout could not be created\n");
+			return -1;
+		}
 	}
 
-	// Now Bdesc actually referes the A matrix. b_cuda_dt has already been set appropriately
-	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Bdesc), b_cuda_dt, K, M, K);
-	if (status != CUBLAS_STATUS_SUCCESS) {
-		fprintf(stderr, "Error: Bdesc matmul layout could not be created\n");
-		return -1;
+	if (to_trans_b){
+		// Now Bdesc actually referes the A matrix. b_cuda_dt has already been set appropriately
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Bdesc), b_cuda_dt, N, K, N);
+		if (status != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "Error: Bdesc matmul layout could not be created\n");
+			return -1;
+		}
 	}
+	else{
+		// Now Bdesc actually referes the A matrix. b_cuda_dt has already been set appropriately
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Bdesc), b_cuda_dt, K, N, K);
+		if (status != CUBLAS_STATUS_SUCCESS) {
+			fprintf(stderr, "Error: Bdesc matmul layout could not be created\n");
+			return -1;
+		}
+	}
+	
 
-	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Ddesc), d_cuda_dt, N, M, N);
+	status = cublasLtMatrixLayoutCreate(&(matmul_params -> Ddesc), d_cuda_dt, M, N, M);
 	if (status != CUBLAS_STATUS_SUCCESS) {
 		fprintf(stderr, "Error: Cdesc matmul layout could not be created\n");
 		return -1;
@@ -430,7 +465,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	if ((c_dt == DATAFLOW_NONE) || (!C) || (matmul_params -> beta_f == 0)){
 		if ((a_dt == DATAFLOW_FP8E4M3) || (a_dt == DATAFLOW_FP8E5M2)){
 			matmul_params -> same_cDesc = false;
-			status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, N, M, N);
+			status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, M, N, M);
                		if (status != CUBLAS_STATUS_SUCCESS) {
                         	fprintf(stderr, "Error: Ddesc matmul layout could not be created\n");
                         	return -1;
@@ -443,7 +478,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 	}
 	else{
 		matmul_params -> same_cDesc = false;
-		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, N, M, N);
+		status = cublasLtMatrixLayoutCreate(&(matmul_params -> Cdesc), c_cuda_dt, M, N, M);
 		if (status != CUBLAS_STATUS_SUCCESS) {
 			fprintf(stderr, "Error: Ddesc matmul layout could not be created\n");
 			return -1;
@@ -466,8 +501,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		return -1;
 	}
 
-	uint64_t workspaceBytes = *((uint64_t *) op_args[11]);
-	void * workspace = (void *) *((uint64_t *) op_args[12]);
+	uint64_t workspaceBytes = *((uint64_t *) op_args[17]);
+	void * workspace = (void *) *((uint64_t *) op_args[18]);
 
 	matmul_params -> workspaceBytes = (size_t) workspaceBytes;
 	matmul_params -> workspace = workspace;
@@ -499,8 +534,8 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 
 	// Ensure A and B are swapped
 	// to maintain illusion of row-major computation!
-	matmul_params -> A = B;
-	matmul_params -> B = A;
+	matmul_params -> A = A;
+	matmul_params -> B = B;
 	matmul_params -> C = C;
 	matmul_params -> D = D;
 

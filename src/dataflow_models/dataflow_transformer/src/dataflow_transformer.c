@@ -366,6 +366,39 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	uint64_t workspaceBytes = (activations -> config).workspaceBytes;
 	void * workspace = (activations -> config).workspace;
 
+	// Assume weights are in col-major format.
+
+	// But we want to process activations in row-major
+
+	// Note that matmul interface assumes col-major storage format
+
+	// Also note that FP8 tensor cores only available in TN format
+
+	// During FWD pass we normally want:
+
+
+	// Thus to compute Y = X @ W, 
+	// we can do Y^T = W^T @ X^T
+	// where from matmul perspective ^T means we interpret as row-major
+	// However we store W as col-major so we need to transpose it.
+
+	// Also for M, K, N (assuming X: (m, k), W (k, n))
+	// we set M = n, K = k, N = m
+
+	// The BWD pass is different because if we want dX's to be in row major we need:
+
+	// dX = dY @ W^T
+	// => dX^T = W @ dY^T
+
+	// so if we store W in col-major format we shouldn't transpose it..
+
+	// Now for bwd we set
+	// M = k, K = n, N = m
+	// where m, k, n are from fwd values of X, W, and Y.
+
+	int to_transa = 1;
+	int to_transb = 0;
+
 
 	printf("Submitting Attention RMS Norm...!\n");
 
@@ -388,10 +421,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, model_dim,
+					to_transa, to_transb,
+					model_dim, model_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_q, NULL, activations -> x_q);
+					transformer_block -> w_q, activations -> x_temp, NULL, activations -> x_q,
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit q matmul proj...\n");
@@ -401,10 +435,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, kv_dim,
+					to_transa, to_transb,
+					model_dim, kv_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_k, NULL, activations -> x_k_local);
+					transformer_block -> w_k, activations -> x_temp, NULL, activations -> x_k_local,
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
@@ -414,10 +449,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, kv_dim,
+					to_transa, to_transb,
+					model_dim, kv_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_v, NULL, activations -> x_v_local);
+					transformer_block -> w_v, activations -> x_temp, NULL, activations -> x_v_local,
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
@@ -483,10 +519,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
-					total_q, model_dim, model_dim,
+					to_transa, to_transb,
+					model_dim, model_dim, total_q, 
 					1.0, 1.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_o, X, activations -> x_o);
+					transformer_block -> w_o, activations -> x_temp, X, activations -> x_o,
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit o matmul proj...\n");
@@ -515,10 +552,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, ffn_dim,
+					to_transa, to_transb,
+					model_dim, ffn_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_1, NULL, (activations -> x_1)[0]);
+					transformer_block -> w_1, activations -> x_temp, NULL, (activations -> x_1)[0],
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w1 matmul proj...\n");
@@ -528,10 +566,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, ffn_dim,
+					to_transa, to_transb,
+					model_dim, ffn_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, workspace,
-					activations -> x_temp, transformer_block -> w_3, NULL, (activations -> x_3)[0]);
+					transformer_block -> w_3, activations -> x_temp, NULL, (activations -> x_3)[0],
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w3 matmul proj...\n");
@@ -558,10 +597,11 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	ret = submit_matmul(dataflow_handle, compute_stream_id, 
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
-					total_q, ffn_dim, model_dim,
+					to_transa, to_transb,
+					ffn_dim, model_dim, total_q, 
 					1.0, 1.0,
-					workspaceBytes, workspace,
-					activations -> x_temp_mlp, transformer_block -> w_2, activations -> x_o, activations -> x_layer_out);
+					transformer_block -> w_2, activations -> x_temp_mlp, activations -> x_o, activations -> x_layer_out,
+					workspaceBytes, workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w2 matmul proj...\n");
@@ -573,12 +613,33 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 
 }
 
-int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX, Transformer_Block * transformer_block, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations) {
+
+// dX_out is upstream gradient
+// it is in col-major orientation
+
+// now to do dX = matmul(dX_out, W^T)
+// we remember that W is being stored in col-major as well
+// thus we can correctly get dX in col major as:
+// we can do matmul(W, dx_Out^T)
+// This is because we will get a row major output of 
+// dX^T = dX in col major
+
+// To see how we get col major of dX recall:
+
+// thus if we pass A = W in col-major = W^T effectively in row major
+// and B = dX_Out in col-major,
+// If we pass in M = w_in, K = w_out, N = x_in, which yields
+// a (w_in, x_in) matrix which we interpret as col major dX
+
+
+
+
+int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX_out, Transformer_Block * transformer_block, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations) {
 
 	int ret;
 
 
-	DataflowDatatype fwd_dt = (transformer_block -> config).block_dt;
+	DataflowDatatype bwd_dt = (transformer_block -> config).block_dt;
 	DataflowDatatype compute_dt = (transformer_block -> config).compute_dt;
 
 	int num_seqs = (activations -> config).num_seqs;
@@ -598,7 +659,7 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 
 }
 
-int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id, Transformer_Block * transformer_block, Transformer_Block_Activations * grad_activations, Transformer_Block * grad_weights) {
+int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX_out, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations, Transformer_Block * grad_weights) {
 
 }
 

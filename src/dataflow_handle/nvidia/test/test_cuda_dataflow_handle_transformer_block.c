@@ -548,6 +548,40 @@ int main(int argc, char * argv[]){
 	}
 
 
+	// Assume weights are in col-major format.
+
+	// But we want to process activations in row-major
+
+	// Note that matmul interface assumes col-major storage format
+
+	// Also note that FP8 tensor cores only available in TN format
+
+	// During FWD pass we normally want:
+
+
+	// Thus to compute Y = X @ W, 
+	// we can do Y^T = W^T @ X^T
+	// where from matmul perspective ^T means we interpret as row-major
+	// However we store W as col-major so we need to transpose it.
+
+	// Also for M, K, N (assuming X: (m, k), W (k, n))
+	// we set M = n, K = k, N = m
+
+	// The BWD pass is different because if we want dX's to be in row major we need:
+
+	// dX = dY @ W^T
+	// => dX^T = W @ dY^T
+
+	// so if we store W in col-major format we shouldn't transpose it..
+
+	// Now for bwd we set
+	// M = k, K = n, N = m
+	// where m, k, n are from fwd values of X, W, and Y.
+
+	int to_trans_a = 1;
+	int to_trans_b = 0;
+
+
 	printf("Submitting Attention RMS Norm...!\n");
 
 	ret = submit_rms_norm(&cuda_dataflow_handle, compute_stream_id_a, 
@@ -569,10 +603,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, model_dim,
+					to_trans_a, to_trans_b,
+					model_dim, model_dim, total_q,
 					1.0, 0.0,
-					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wq, NULL, d_wq_out);
+					d_wq, d_attn_norm_out, NULL, d_wq_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit q matmul proj...\n");
@@ -582,10 +617,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, kv_dim,
+					to_trans_a, to_trans_b,
+					model_dim, kv_dim, total_q,
 					1.0, 0.0,
-					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wk, NULL, d_wk_out);
+					d_wk, d_attn_norm_out, NULL, d_wk_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
@@ -595,10 +631,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, kv_dim,
+					to_trans_a, to_trans_b,
+					model_dim, kv_dim, total_q,
 					1.0, 0.0,
-					workspaceBytes, d_matmul_workspace,
-					d_attn_norm_out, d_wv, NULL, d_wv_out);
+					d_wv, d_attn_norm_out, NULL, d_wv_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit v matmul proj...\n");
@@ -641,10 +678,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
-					total_q, model_dim, model_dim,
+					to_trans_a, to_trans_b,
+					model_dim, model_dim, total_q, 
 					1.0, 1.0,
-					workspaceBytes, d_matmul_workspace,
-					d_attn_out, d_wo, d_orig_x, d_wo_out);
+					d_wo, d_attn_out, d_orig_x, d_wo_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit o matmul proj...\n");
@@ -671,10 +709,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, (int) ffn_dim,
+					to_trans_a, to_trans_b,
+					model_dim, (int) ffn_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, d_matmul_workspace,
-					d_ffn_norm_out, d_w1, NULL, d_w1_out);
+					d_w1, d_ffn_norm_out, NULL, d_w1_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w1 matmul proj...\n");
@@ -684,10 +723,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
-					total_q, model_dim, (int) ffn_dim,
+					to_trans_a, to_trans_b,
+					model_dim, (int) ffn_dim, total_q, 
 					1.0, 0.0,
-					workspaceBytes, d_matmul_workspace,
-					d_ffn_norm_out, d_w3, NULL, d_w3_out);
+					d_w3, d_ffn_norm_out, NULL, d_w3_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w3 matmul proj...\n");
@@ -714,10 +754,11 @@ int main(int argc, char * argv[]){
 	ret = submit_matmul(&cuda_dataflow_handle, compute_stream_id_a, 
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
-					total_q, (int) ffn_dim, model_dim,
+					to_trans_a, to_trans_b,
+					(int) ffn_dim, model_dim, total_q, 
 					1.0, 1.0,
-					workspaceBytes, d_matmul_workspace,
-					d_swiglu_out, d_w2, d_wo_out, d_w2_out);
+					d_w2, d_swiglu_out, d_wo_out, d_w2_out,
+					workspaceBytes, d_matmul_workspace);
 
 	if (ret){
 		fprintf(stderr, "Error: failed to submit w2 matmul proj...\n");
