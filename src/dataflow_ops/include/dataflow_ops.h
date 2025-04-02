@@ -142,6 +142,12 @@ int submit_attention_bwd(Dataflow_Handle * handle, int stream_id,
 
 // NATIVE OPS
 
+// From preprocess_ops.c
+int submit_embedding(Dataflow_Handle * handle, int stream_id, 
+						DataflowDatatype fwd_dt, 
+						int num_tokens, int embed_dim, 
+						uint32_t * token_ids, void * embedding_table, void * output);
+
 // From norm_ops.c
 
 int submit_rms_norm(Dataflow_Handle * handle, int stream_id, 

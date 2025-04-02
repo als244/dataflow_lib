@@ -6,6 +6,8 @@
 #include "ops.h"
 #include "dataflow_handle.h"
 
+void set_native_embedding_skeleton(Op_Skeleton * skeleton, DataflowDatatype fwd_datatype);
+
 void set_native_rms_norm_skeleton(Op_Skeleton * skeleton, DataflowDatatype fwd_datatype);
 void set_native_rms_norm_bwd_x_skeleton(Op_Skeleton * skeleton, DataflowDatatype fwd_datatype, DataflowDatatype bwd_datatype);
 void set_native_rms_norm_bwd_w_skeleton(Op_Skeleton * skeleton, DataflowDatatype fwd_datatype, DataflowDatatype bwd_datatype);

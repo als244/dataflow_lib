@@ -480,6 +480,15 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 		return -1;
 	}
 
+
+	// ensure workspace is zerod out beforehand....
+
+	ret = (dataflow_handle -> set_mem)(dataflow_handle, compute_stream_id, workspace, 0, workspaceBytes);
+	if (ret){
+		fprintf(stderr, "Error: unable to set attention workspace mem to 0 before submitting...\n");
+		return -1;
+	}
+
 	// 6. Backprop through attention
 	ret = submit_attention_bwd(dataflow_handle, compute_stream_id,
 							bwd_dt,

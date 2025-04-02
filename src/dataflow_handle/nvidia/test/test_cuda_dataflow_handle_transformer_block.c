@@ -315,8 +315,7 @@ int main(int argc, char * argv[]){
 
 	void * attn_norm_weighted_sums = seq_positions + seq_positions_size;
 	void * attn_norm_rms_vals = attn_norm_weighted_sums + weighted_sums_size;
-	void * attn_workspace = attn_norm_rms_vals + rms_vals_size;
-	void * attn_softmax_lse = attn_workspace + attn_workspace_size;
+	void * attn_softmax_lse = attn_norm_rms_vals + attn_workspace_size;
 
 	void * ffn_norm_weighted_sums = attn_softmax_lse + softmax_lse_size;
 	void * ffn_norm_rms_vals = ffn_norm_weighted_sums + weighted_sums_size;
@@ -523,14 +522,7 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
-	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_attn_workspace, attn_workspace, attn_workspace_size);
-	if (ret){
-		fprintf(stderr, "Error: host to device transfer failed for attn_workspace...\n");
-		return -1;
-	}
-
 	printf("Transferring seq batch to device...\n");
-
 
 	ret = cuda_dataflow_handle.submit_inbound_transfer(&cuda_dataflow_handle, inbound_stream_id_a, d_orig_x, orig_x, x_size);
 	if (ret){
@@ -654,6 +646,11 @@ int main(int argc, char * argv[]){
 		return -1;
 	}
 
+	ret = ((&cuda_dataflow_handle) -> set_mem)(&cuda_dataflow_handle, compute_stream_id_a, d_attn_workspace, 0, attn_workspace_size);
+	if (ret){
+		fprintf(stderr, "Error: unable to set attention workspace mem to 0 before submitting...\n");
+		return -1;
+	}
 
 	printf("Submitting Attention...!\n");
 
@@ -665,7 +662,7 @@ int main(int argc, char * argv[]){
 						 num_q_heads, num_kv_heads, head_dim,
 						 d_wq_out, d_wk_out, d_wv_out,
 						 d_attn_out, d_attn_softmax_lse, 
-						 workspaceBytes, d_attn_workspace);
+						 attn_workspace_size, d_attn_workspace);
 	if (ret){
 		fprintf(stderr, "Error: failed to submit attention...\n");
 		return -1;

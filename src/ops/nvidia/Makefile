@@ -9,7 +9,7 @@ CUDA_INCLUDE_DIR = /usr/local/cuda/include
 CUDA_LIB_DIR = /usr/local/cuda/lib64/stubs
 CUDA_LIB_DEPENDS = -lcuda
 
-CUDA_ARCH_NUM = 90
+CUDA_ARCH_NUM = 86
 
 PROJ_COMMON_HEADER = ../../../include
 DATAFLOW_HANDLE_HEADER = ../../dataflow_handle/include
@@ -25,7 +25,7 @@ GEN_CUBIN = lib/cuda_kernels.cubin
 
 CUDA_KERNELS_SRC = cuda_kernels.cu
 
-NATIVE_FUNC_SRC_FILES = norm/rms_norm_config.c attention/attn_misc_config.c activations/swiglu_config.c loss/loss_misc_config.c
+NATIVE_FUNC_SRC_FILES = preprocess/embedding_config.c norm/rms_norm_config.c attention/attn_misc_config.c activations/swiglu_config.c loss/loss_misc_config.c
 NATIVE_FUNC_LIB_OBJ_DEPENDS = ../../dataflow_handle/nvidia/objs/cuda_drv.o ../../datatype/objs/dataflow_datatype.o
 
 NATIVE_FUNC_LIB = lib/cuda_kernels_config.so
