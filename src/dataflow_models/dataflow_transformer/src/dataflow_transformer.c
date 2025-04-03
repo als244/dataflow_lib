@@ -297,13 +297,15 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 }
 
 
-int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_stream_id,
+int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id,
                         Transformer_Block_Input * block_input, Transformer_Head * transformer_head,
                         Transformer_Head_Activations * head_activations, 
                         Transformer_Model_Output * model_output,
+						// during interference these would be NULL
 						Transformer_Head * grad_transformer_head,
 						Transformer_Head_Activations * grad_head_activations,
-						Transformer_Block_Output * grad_stream) {
+						Transformer_Block_Output * grad_stream,
+						Transformer_Block_Output * next_grad_stream) {
 
     int ret;
 
@@ -476,6 +478,22 @@ int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_strea
         fprintf(stderr, "Error: Failed to submit bwd w rms norm in transformer head...\n");
         return ret;
     }
+
+	if (next_grad_stream){
+		size_t x_el_size = dataflow_sizeof_element(grad_transformer_head -> bwd_dt);
+		uint64_t block_out_size = head_activations -> num_tokens * embedding_size * x_el_size;
+
+		// copy the grad_stream to the next_grad_stream
+		ret = (dataflow_handle -> submit_peer_transfer)(dataflow_handle, out_copy_stream_id,
+										next_grad_stream -> X_out,
+										grad_stream -> X_out, 
+										block_out_size);
+
+		if (ret){
+			fprintf(stderr, "Error: failed to submit peer transfer for copying head gradient to next location...\n");
+			return ret;
+		}
+	}
 
     return 0;
 }
