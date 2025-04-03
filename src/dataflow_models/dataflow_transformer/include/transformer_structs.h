@@ -127,21 +127,15 @@ typedef struct transformer_head_activations {
 	uint64_t kernel_workspaceBytes;
 } Transformer_Head_Activations;
 
-typedef struct transformer_block_input {
+typedef struct transformer_block_transition {
 	Seq_Batch_Config * batch_config;
 	void * X;
-} Transformer_Block_Input;
+} Transformer_Block_Transition;
 
-typedef struct transformer_block_output {
-	Seq_Batch_Config * batch_config;
-	void * X_out;
-} Transformer_Block_Output;
 
 typedef struct transformer_model_input {
 	Seq_Batch_Config * batch_config;
 	uint32_t * token_ids;
-	// populate X within block_input
-	Transformer_Block_Input * block_input;
 } Transformer_Model_Input;
 
 typedef struct transformer_model_output {

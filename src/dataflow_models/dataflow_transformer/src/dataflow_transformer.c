@@ -4,10 +4,10 @@
 // but really should have subfunctions to do norms, attn, and mlp based on transformer block config...!
 
 int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id, 
-								Transformer_Block_Input * block_input, 
+								Transformer_Block_Transition * block_input, 
 								Transformer_Block * transformer_block, 
 								Transformer_Block_Activations * activations, 
-								Transformer_Block_Output * block_output) {
+								Transformer_Block_Transition * block_output) {
 
     int ret;
     DataflowDatatype fwd_dt = transformer_block->config.block_dt;
@@ -280,7 +280,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 	uint64_t block_out_size = total_q * model_dim * x_el_size;
 
 	ret = (dataflow_handle -> submit_peer_transfer)(dataflow_handle, out_copy_stream_id,
-										block_output -> X_out,
+										block_output -> X,
 										(saved_activations -> x_2)[0], 
 										block_out_size);
 
@@ -298,14 +298,14 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 
 
 int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id,
-                        Transformer_Block_Input * block_input, Transformer_Head * transformer_head,
+                        Transformer_Block_Transition * block_input, Transformer_Head * transformer_head,
                         Transformer_Head_Activations * head_activations, 
                         Transformer_Model_Output * model_output,
 						// during interference these would be NULL
 						Transformer_Head * grad_transformer_head,
 						Transformer_Head_Activations * grad_head_activations,
-						Transformer_Block_Output * grad_stream,
-						Transformer_Block_Output * next_grad_stream) {
+						Transformer_Block_Transition * grad_stream,
+						Transformer_Block_Transition * next_grad_stream) {
 
     int ret;
 
@@ -458,7 +458,7 @@ int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_strea
                                transformer_head -> w_head_norm,
                                block_input -> X,         // Original input
                                grad_head_activations -> head_norm_out,      // Upstream gradient
-                               grad_stream -> X_out);
+                               grad_stream -> X);
 	if (ret) {
         fprintf(stderr, "Error: Failed to submit bwd x rms norm in transformer head...\n");
         return ret;
@@ -485,8 +485,8 @@ int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_strea
 
 		// copy the grad_stream to the next_grad_stream
 		ret = (dataflow_handle -> submit_peer_transfer)(dataflow_handle, out_copy_stream_id,
-										next_grad_stream -> X_out,
-										grad_stream -> X_out, 
+										next_grad_stream -> X,
+										grad_stream -> X, 
 										block_out_size);
 
 		if (ret){
@@ -520,11 +520,11 @@ int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_strea
 
 int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id,
 								Transformer_Block * transformer_block, 
-								Transformer_Block_Output * inp_grad_stream, 
-								Transformer_Block_Activations * activations, Transformer_Block_Input * fwd_block_input,
+								Transformer_Block_Transition * inp_grad_stream, 
+								Transformer_Block_Activations * activations, Transformer_Block_Transition * fwd_block_input,
 								Transformer_Block_Activations * grad_activations,
 								Transformer_Block * grad_weights, // for the norm weights while using streaming grad
-								Transformer_Block_Output * out_grad_stream) {
+								Transformer_Block_Transition * out_grad_stream) {
 
 	int ret;
 	DataflowDatatype bwd_dt = (transformer_block -> config).block_dt;
@@ -568,7 +568,7 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 					to_transa, to_transb,
 					ffn_dim, model_dim, total_q,  // M = ffn_dim, K = model_dim, N = num_tokens
 					1.0, 0.0,
-					transformer_block -> w_2[0], inp_grad_stream -> X_out, NULL, bwd_activation_workspace -> x_temp_mlp,
+					transformer_block -> w_2[0], inp_grad_stream -> X, NULL, bwd_activation_workspace -> x_temp_mlp,
 					kernel_workspaceBytes, kernel_workspace);
 	if (ret) {
 		fprintf(stderr, "Error: failed to submit w2 backward matmul...\n");
@@ -628,7 +628,7 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 							transformer_block -> w_ffn_norm,
 							fwd_activations -> x_o,  // Input to norm
 							bwd_activation_workspace -> x_temp,  // Upstream gradient
-							inp_grad_stream -> X_out);                    // Final output gradient
+							inp_grad_stream -> X);                    // Final output gradient
 	if (ret) {
 		fprintf(stderr, "Error: failed to submit ffn norm backward...\n");
 		return -1;
@@ -783,7 +783,7 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 							transformer_block -> w_attn_norm,
 							fwd_block_input -> X,  // Input to norm
 							bwd_activation_workspace -> x_temp,  // Upstream gradient
-							inp_grad_stream -> X_out);                    // Final output gradient
+							inp_grad_stream -> X);                    // Final output gradient
 	if (ret) {
 		fprintf(stderr, "Error: failed to submit attention norm backward...\n");
 		return -1;
@@ -838,8 +838,8 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 		uint64_t block_out_size = total_q * model_dim * x_el_size;
 		
 		ret = (dataflow_handle -> submit_peer_transfer)(dataflow_handle, out_copy_stream_id,
-										out_grad_stream -> X_out,
-										inp_grad_stream -> X_out, 
+										out_grad_stream -> X,
+										inp_grad_stream -> X, 
 										block_out_size);
 		if (ret){
 			fprintf(stderr, "Error: failed to submit transfer to copy block output gradient...\n");
@@ -851,7 +851,7 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 }
 
 int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id,
-                                Transformer_Block_Output * grad_stream,
+                                Transformer_Block_Transition * grad_stream,
                                 Transformer_Block_Activations * activations, 
                                 Transformer_Block_Activations * grad_activations, 
                                 Transformer_Block * grad_weights) {
@@ -902,7 +902,7 @@ int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int comput
                     to_transa, to_transb,
                     ffn_dim, model_dim, total_q,
                     1.0, 1.0,  // Accumulate gradients
-                    grad_stream -> X_out, bwd_activation_workspace -> x_temp_mlp, (grad_weights -> w_2)[0], (grad_weights -> w_2)[0],
+                    grad_stream -> X, bwd_activation_workspace -> x_temp_mlp, (grad_weights -> w_2)[0], (grad_weights -> w_2)[0],
                     kernel_workspaceBytes, kernel_workspace);
     if (ret) {
         fprintf(stderr, "Error: failed to submit w2 weight gradient computation...\n");
