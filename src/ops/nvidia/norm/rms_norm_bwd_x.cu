@@ -332,7 +332,7 @@ extern "C" __global__ void rms_norm_bwd_x_fp8e4m3_fp16_kernel(int n_rows, int n_
 			deriv = (weights[i] * cur_rms_val) - (((inp_val * cur_rms_val_cub) / n_cols) * cur_weighted_sum);
 
 			// now update dX
-			dX[row_id * n_cols + i] = upstream_dX[row_id * n_cols + i] * __float2half(deriv);
+			dX[row_id * n_cols + i] += upstream_dX[row_id * n_cols + i] * __float2half(deriv);
 
 		}
 	}
