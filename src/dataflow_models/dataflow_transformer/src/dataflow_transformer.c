@@ -220,7 +220,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_transa, to_transb,
-					model_dim, ffn_dim, total_q, 
+					ffn_dim, model_dim, total_q, 
 					1.0, 0.0,
 					transformer_block -> w_1, activation_workspace -> x_temp, NULL, (saved_activations -> x_1)[0],
 					kernel_workspaceBytes, kernel_workspace);
@@ -234,7 +234,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_transa, to_transb,
-					model_dim, ffn_dim, total_q, 
+					ffn_dim, model_dim, total_q, 
 					1.0, 0.0,
 					transformer_block -> w_3, activation_workspace -> x_temp, NULL, (saved_activations -> x_3)[0],
 					kernel_workspaceBytes, kernel_workspace);
@@ -265,7 +265,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
 					to_transa, to_transb,
-					ffn_dim, model_dim, total_q, 
+					model_dim, ffn_dim, total_q, 
 					1.0, 1.0,
 					transformer_block -> w_2, activation_workspace -> x_temp_mlp, saved_activations -> x_o, (saved_activations -> x_2)[0],
 					kernel_workspaceBytes, kernel_workspace);
