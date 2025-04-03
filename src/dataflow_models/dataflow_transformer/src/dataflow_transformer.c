@@ -95,7 +95,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					kernel_workspaceBytes, kernel_workspace);
 
 	if (ret){
-		fprintf(stderr, "Error: failed to submit q matmul proj...\n");
+		fprintf(stderr, "Error: failed to submit Q matmul proj...\n");
 		return -1;
 	}
 
@@ -109,7 +109,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					kernel_workspaceBytes, kernel_workspace);
 
 	if (ret){
-		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
+		fprintf(stderr, "Error: failed to submit K matmul proj...\n");
 		return -1;
 	}
 
@@ -123,7 +123,7 @@ int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stre
 					kernel_workspaceBytes, kernel_workspace);
 
 	if (ret){
-		fprintf(stderr, "Error: failed to submit k matmul proj...\n");
+		fprintf(stderr, "Error: failed to submit V matmul proj...\n");
 		return -1;
 	}
 
@@ -689,14 +689,14 @@ int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int comput
 							(transformer_block -> config).num_kv_heads,
 							(transformer_block -> config).head_dim,
 							fwd_activations -> x_q,       // Q input
-							fwd_context -> x_k,  // K input
-							fwd_context -> x_v,  // V input
+							fwd_context -> x_k,  // K input (full context input keys)
+							fwd_context -> x_v,  // V input (full context input values)
 							fwd_activations -> x_attn_out,     // Attention output
 							fwd_activations -> softmax_lse,// Softmax scaling factors
 							bwd_activation_workspace -> x_temp,// Upstream gradient
 							bwd_activations -> x_q,   // dQ output
-							bwd_context -> x_k,  // dK input
-							bwd_context -> x_v, // dV output
+							bwd_context -> x_k,  // dK output (full context key grads)
+							bwd_context -> x_v, // dV output (full context grads)
 							kernel_workspaceBytes, kernel_workspace);
 	if (ret) {
 		fprintf(stderr, "Error: failed to submit attention backward...\n");
