@@ -114,6 +114,7 @@ struct dataflow_handle {
 	// From/to host memory
 	int (*submit_inbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_dest, void * host_src, uint64_t size_bytes);
 	int (*submit_outbound_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * host_dest, void * dev_src, uint64_t size_bytes);
+	// also works for self!
 	int (*submit_peer_transfer)(Dataflow_Handle * dataflow_handle, int stream_id, void * dev_dest, void * dev_src, uint64_t size_bytes);
 	
 	// TODO: Network

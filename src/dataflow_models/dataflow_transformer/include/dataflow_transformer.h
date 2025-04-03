@@ -40,27 +40,33 @@ int bind_transformer_block(void * buffer, Transformer_Block * transformer_block)
 
 
 
-int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * X, Transformer_Block * transformer_block, Transformer_Block_Activations * activations);
+int submit_transformer_block(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id,
+								Transformer_Block_Input * block_input, 
+								Transformer_Block * transformer_block, Transformer_Block_Activations * activations, 
+								Transformer_Block_Output * block_output);
 
 int submit_transformer_head(Dataflow_Handle * dataflow_handle, int compute_stream_id,
-                        void * X, Transformer_Head * transformer_head,
+                        Transformer_Block_Input * block_input, Transformer_Head * transformer_head,
                         Transformer_Head_Activations * head_activations, 
-						void * logits_out);
+                        Transformer_Model_Output * model_output,
+						Transformer_Head * grad_transformer_head,
+						Transformer_Head_Activations * grad_head_activations,
+						Transformer_Block_Output * grad_stream);
 
 
-int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX_out, void * X,Transformer_Block * transformer_block, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations);
+int submit_transformer_block_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id, int out_copy_stream_id,
+								Transformer_Block * transformer_block, 
+								Transformer_Block_Output * inp_grad_stream, 
+								Transformer_Block_Activations * activations, Transformer_Block_Input * fwd_block_input,
+								Transformer_Block_Activations * grad_activations,
+								Transformer_Block * grad_weights, // for the norm weights while using streaming grad
+								Transformer_Block_Output * out_grad_stream);
 
-int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id, void * dX_out, Transformer_Block_Activations * activations, Transformer_Block_Activations * grad_activations, Transformer_Block * grad_weights);
+int submit_transformer_block_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id,
+                                Transformer_Block_Output * grad_stream, 
+                                Transformer_Block_Activations * activations, 
+                                Transformer_Block_Activations * grad_activations, 
+                                Transformer_Block * grad_weights);
 
-int submit_transformer_head_bwd_x(Dataflow_Handle * dataflow_handle, int compute_stream_id,
-                        void * logits_out, uint32_t * labels, Transformer_Head * transformer_head,
-                        Transformer_Head_Activations * head_activations,
-                        Transformer_Head_Activations * grad_head_activations,
-                        void * dX_out);
-
-int submit_transformer_head_bwd_w(Dataflow_Handle * dataflow_handle, int compute_stream_id,
-                         Transformer_Head_Activations * head_activations,
-                         Transformer_Head_Activations * grad_head_activations,
-                         Transformer_Head * grad_transformer_head);
 
 #endif
