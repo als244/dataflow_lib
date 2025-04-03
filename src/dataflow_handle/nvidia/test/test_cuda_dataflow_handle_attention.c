@@ -1,6 +1,8 @@
 #include "cuda_dataflow_handle.h"
 #include "create_host_matrix.h"
 #include "dataflow_ops.h"
+#include "set_external_op_skeletons.h"
+#include "set_native_op_skeletons.h"
 
 int main(int argc, char * argv[]){
 
@@ -23,14 +25,39 @@ int main(int argc, char * argv[]){
 	int opt_stream_prios[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 	char * opt_stream_names[8] = {"Inbound (a)", "Compute (a)", "Outbound (a)", "Peer (a)", "Inbound (b)", "Compute (b)", "Outbound (b)", "Peer (b)"};
 	
-	char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
-	char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
-	char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+	// char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
+	// char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
+	// char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+
+	// ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
+	// 		ctx_id, ctx_flags, 
+	// 		num_streams, opt_stream_prios, opt_stream_names, 
+	// 		all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
 
 	ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
 			ctx_id, ctx_flags, 
-			num_streams, opt_stream_prios, opt_stream_names, 
-			all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
+			num_streams, opt_stream_prios, opt_stream_names);
+
+	// Register flash attention op
+
+	int added_funcs;
+
+	Op_Skeleton flash_attention_skeletons[2];
+	set_external_flash3_attention_fwd_skeleton(&flash_attention_skeletons[0]);
+	set_external_flash3_attention_bwd_skeleton(&flash_attention_skeletons[1]);
+
+	char * flash_attention_lib = "../../../ops/nvidia/external/attention_helper/lib/libattentionwrapper.so";
+	
+	char * flash_attention_symbols[2] = {"flash3_attention_fwd", "flash3_attention_bwd"};
+
+	char * flash_attention_init_symbols[2] = {NULL, NULL};
+
+	added_funcs = cuda_dataflow_handle.register_external_code(&cuda_dataflow_handle, flash_attention_lib, 2, flash_attention_skeletons, flash_attention_symbols, flash_attention_init_symbols);
+	if (added_funcs != 2){
+		fprintf(stderr, "Error: failed to register flash attention op, expected 2 functions, got %d...\n", added_funcs);
+		return -1;
+	}
+	
 	
 	if (ret){
 		fprintf(stderr, "Error: failed to init cuda dataflow handle...\n");

@@ -20,17 +20,41 @@ int main(int argc, char * argv[]){
 	int opt_stream_prios[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 	char * opt_stream_names[8] = {"Inbound (a)", "Compute (a)", "Outbound (a)", "Peer (a)", "Inbound (b)", "Compute (b)", "Outbound (b)", "Peer (b)"};
 	
-	char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
-        char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
-        char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+	// char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
+	// char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
+	// char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+
+	// ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
+	// 		ctx_id, ctx_flags, 
+	// 		num_streams, opt_stream_prios, opt_stream_names, 
+	// 		all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
 
 	ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
 			ctx_id, ctx_flags, 
-			num_streams, opt_stream_prios, opt_stream_names, 
-			all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
+			num_streams, opt_stream_prios, opt_stream_names); 
 	
 	if (ret){
 		fprintf(stderr, "Error: failed to init cuda dataflow handle...\n");
+		return -1;
+	}
+
+	// Register matmul op
+
+	int added_funcs;
+
+	Op_Skeleton matmul_skeletons[1];
+	set_external_matmul_skeleton(&matmul_skeletons[0]);
+
+
+	char * matmul_lib = "../../../ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so";
+	
+	char * matmul_symbols[1] = {"cublas_matmul"};
+
+	char * matmul_init_symbols[1] = {"cublas_matmul_init"};
+
+	added_funcs = cuda_dataflow_handle.register_external_code(&cuda_dataflow_handle, matmul_lib, 1, matmul_skeletons, matmul_symbols, matmul_init_symbols);
+	if (added_funcs != 1){
+		fprintf(stderr, "Error: failed to register matmul op, expected 1 functions, got %d...\n", added_funcs);
 		return -1;
 	}
 

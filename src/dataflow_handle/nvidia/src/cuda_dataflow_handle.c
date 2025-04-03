@@ -48,6 +48,208 @@ uint64_t cuda_op_table_hash_func(void * op_fingerprint, uint64_t table_size) {
 
 // FUFILLING ALL FUNCTION POINTERS WIHTIN COMPUTE_HANDLE INTERFACE...
 
+/* 0. OPS FUNCTIONALITY */
+
+int cuda_register_native_code(Dataflow_Handle * dataflow_handle, char * native_code_filename, char * native_code_config_lib_filename, 
+								int num_funcs, Op_Skeleton * func_op_skeletons, char ** func_symbols, char ** func_set_launch_symbols, char ** func_init_symbols) {
+	
+	int ret;
+
+	if (dataflow_handle -> num_native_function_libs >= MAX_NATIVE_FUNCTION_LIBS){
+		fprintf(stderr, "Error: cannot register more than %d native function libs...\n", MAX_NATIVE_FUNCTION_LIBS);
+		return -1;
+	}
+
+	CUmodule * cur_module = malloc(sizeof(CUmodule));
+	if (!cur_module){
+		fprintf(stderr, "Error: malloc failed to allocate space for cumodule container...\n");
+		return -1;
+	}
+
+	ret = cu_load_module(cur_module, native_code_filename);
+	if (ret){
+		fprintf(stderr, "Error: unable to load function lib from path: %s...\n", native_code_filename);
+		free(cur_module);
+		return -1;
+	}
+
+	
+	CUmodule module = *(cur_module);
+
+	
+
+	// Load the config lib
+	void * native_config_lib_handle = dlopen(native_code_config_lib_filename, RTLD_LAZY);
+	if (!native_config_lib_handle){
+		fprintf(stderr, "Error: could not load function config shared lib with dlopen() from path: %s\n", native_code_config_lib_filename);
+		free(cur_module);
+		return -1;
+	}
+
+	Cuda_Function cur_cuda_function;
+
+	int added_funcs = 0;
+
+	char * cur_func_symbol;
+
+	for (int i = 0; i < num_funcs; i++){
+
+		cur_func_symbol = func_symbols[i];
+
+		if (cur_func_symbol){
+
+			if (!func_set_launch_symbols[i]){
+				fprintf(stderr, "Error: set launch symbol not set for native function%s, but is required for native functions..\n", cur_func_symbol);
+				continue;
+			}
+
+			cur_cuda_function.is_native = true;
+
+			ret = cu_module_get_function(&(cur_cuda_function.function_handle), module, cur_func_symbol);
+			if (ret){
+				fprintf(stderr, "Error: failed to load function #%d with name %s from function lib...\n", i, cur_func_symbol);
+				continue;
+			}
+
+			// call the set attribute function from shared library with symbol specified by func_config_lib_set_attribute_symbol_name
+			if (func_init_symbols[i]){
+				Cuda_Set_Func_Attribute set_func_attribute = dlsym(native_config_lib_handle, func_init_symbols[i]);
+				if (!set_func_attribute){
+					fprintf(stderr, "Error: failed to load symbol to initialize function #%d with name %s and attribute setting function as %s...\n", i, cur_func_symbol, func_init_symbols[i]);
+					continue;
+				}
+
+				// now call set func attribute
+				ret = set_func_attribute(dataflow_handle, &(cur_cuda_function));
+				if (ret){
+					fprintf(stderr, "Error: failed to set function attributes for function #%d with name %s and attribute setting function as %s\n", i, cur_func_symbol, func_init_symbols[i]);
+					continue;
+				}
+			}
+
+
+			ret = cu_func_load(cur_cuda_function.function_handle);
+			if (ret){
+				fprintf(stderr, "Error: could not load cuda function with name %s from function lib...\n", cur_func_symbol);
+				continue;
+			}
+
+			
+			// now set the pointer for launch config as part of 
+			cur_cuda_function.set_launch_config = dlsym(native_config_lib_handle, func_set_launch_symbols[i]);
+			if (!cur_cuda_function.set_launch_config){
+				fprintf(stderr, "Error: failed to get function pointer to launch config for for function #%d with name %s and set_launch_config function name as %s\n", i, cur_func_symbol, func_set_launch_symbols[i]);
+				continue;
+			}
+		
+			// copy over the op skeleton
+			memcpy(&(cur_cuda_function.op_skeleton), &(func_op_skeletons[i]), sizeof(Op_Skeleton));
+
+			// set extra attributes to null
+			cur_cuda_function.cuda_external_func = NULL;
+			cur_cuda_function.op_extra = NULL;
+		
+			// now insert the cuda function into the table...
+
+			// the table copies the contents of cur_cuda_function...
+			ret = insert_table(&(dataflow_handle -> op_table), &(cur_cuda_function.op_skeleton.identifier.fingerprint), &cur_cuda_function);
+			if (ret){
+				fprintf(stderr, "Error: failed to insert op for function #%d with name %s to op table...\n", i, cur_func_symbol);
+				continue;
+			}
+
+			added_funcs++;
+
+		}
+
+		if (added_funcs == 0){
+			fprintf(stderr, "Error: no functions were added to op table...\n");
+			free(cur_module);
+			return -1;
+		}
+
+	}
+
+	dataflow_handle -> native_function_libs[dataflow_handle -> num_native_function_libs] = cur_module;
+	dataflow_handle -> num_native_function_libs++;
+
+	dataflow_handle -> num_ops += added_funcs;
+
+	return added_funcs;
+}
+
+int cuda_register_external_code(Dataflow_Handle * dataflow_handle, char * external_code_filename, int num_funcs, 
+								Op_Skeleton * func_op_skeletons, char ** func_symbols, char ** func_init_symbols) {
+	int ret;
+	void * external_lib_handle = dlopen(external_code_filename, RTLD_LAZY);
+	if (!external_lib_handle) {
+		fprintf(stderr, "Error: could not open external library with path: %s\n", external_code_filename);
+		return -1;
+	}
+
+	External_Lib_Func_Init external_lib_func_init_ref;
+	External_Lib_Func external_lib_func_ref;
+	Cuda_Function cur_cuda_function;
+	int added_funcs = 0;
+	char * cur_func_symbol;
+
+	for (int i = 0; i < num_funcs; i++) {
+		cur_func_symbol = func_symbols[i];
+		if (cur_func_symbol) {
+			// Obtain the actual function
+			external_lib_func_ref = dlsym(external_lib_handle, cur_func_symbol);
+			if (!external_lib_func_ref) {
+				fprintf(stderr, "Error: could not obtain function symbol %s from external lib %s...\n", cur_func_symbol, external_code_filename);
+				continue;
+			}
+
+			// set the external function
+			cur_cuda_function.cuda_external_func = external_lib_func_ref;
+
+			// If function has an init coupled
+			if (func_init_symbols[i]) {
+				external_lib_func_init_ref = dlsym(external_lib_handle, func_init_symbols[i]);
+				if (!external_lib_func_init_ref) {
+					fprintf(stderr, "Error: could not get ref to initialization function %s, for external function %s\n", func_init_symbols[i], cur_func_symbol);
+					continue;
+				}
+
+				// call the initialization function
+				ret = (*external_lib_func_init_ref)(dataflow_handle, (void *) &cur_cuda_function);
+				if (ret) {
+					fprintf(stderr, "Error: initialization function %s, for external function %s returned an error...\n", func_init_symbols[i], cur_func_symbol);
+					continue;
+				}
+			}
+
+			// now insert the cuda function into the table...
+
+			// copy over the op skeleton
+			memcpy(&(cur_cuda_function.op_skeleton), &(func_op_skeletons[i]), sizeof(Op_Skeleton));
+
+			// set native attributes to null
+			memset(&cur_cuda_function.function_config, 0, sizeof(Cuda_Function_Config));
+			cur_cuda_function.is_native = false;
+			memset(&cur_cuda_function.function_handle, 0, sizeof(CUfunction));
+			cur_cuda_function.set_launch_config = NULL;
+
+			// the table copies the value
+			ret = insert_table(&(dataflow_handle -> op_table), &(cur_cuda_function.op_skeleton.identifier.fingerprint), &cur_cuda_function);
+			if (ret){
+				fprintf(stderr, "Error: failed to insert op for function #%d with name %s to op table...\n", i, cur_func_symbol);
+				continue;
+			}
+
+			added_funcs++;
+		}		
+	}
+
+	dataflow_handle -> num_ops += added_funcs;
+
+	return added_funcs;
+}
+
+
 
 /* 1. COMPUTE FUNCTIONALITY */
 
@@ -519,8 +721,7 @@ int cuda_set_device_info(Cuda_Device_Info * device_info, CUdevice dev){
 
 int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType compute_type, int device_id, 
 								int ctx_id, unsigned int ctx_flags, 
-								int num_streams, int * opt_stream_prios, char ** opt_stream_names, 
-								char * all_function_meta_filename, char * native_function_config_lib_filename, char * native_function_lib_filename) {
+								int num_streams, int * opt_stream_prios, char ** opt_stream_names) {
 
 	int ret;
 
@@ -657,70 +858,18 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 	}
 
 
-	// 5.) Init function lib
+	// 5.) Iniitalize 0 native function libs...
 
-	dataflow_handle -> function_lib = malloc(sizeof(CUmodule));
-	if (!dataflow_handle -> function_lib){
-		fprintf(stderr, "Error: malloc failed to allocate space for cumodule container...\n");
-		return -1;
-	}
-
-	ret = cu_load_module(dataflow_handle -> function_lib, native_function_lib_filename);
-	if (ret){
-		fprintf(stderr, "Error: unable to load function lib from path: %s...\n", native_function_lib_filename);
-		return -1;
-	}
-
-
-	// 6.) Load the function configuration shared library
-
-	void * config_lib_handle = dlopen(native_function_config_lib_filename, RTLD_LAZY);
-	if (!config_lib_handle){
-		fprintf(stderr, "Error: could not load function config shared lib with dlopen() from path: %s\n", native_function_config_lib_filename);
-		return -1;
-	}
-
-
-	// 7.) Read all of the function metadata info from file...
-
-	FILE * meta_fp = fopen(all_function_meta_filename, "rb");
-	if (!meta_fp){
-		fprintf(stderr, "Error: could not open function metadata file from path: %s\n", all_function_meta_filename);
-		return -1;
-	}
-
-
-	fseek(meta_fp, 0, SEEK_END);
-	long meta_file_size = ftell(meta_fp);
-	rewind(meta_fp);
-
-
-	long num_funcs = meta_file_size / sizeof(Func_Meta);
-
-
-	Func_Meta * function_metadata = malloc(num_funcs * sizeof(Func_Meta));
-	if (!function_metadata){
-		fprintf(stderr, "Error: malloc failed to allocate space to read in function metadata info...\n");
-		return -1;
-	}
-
-	size_t nread = fread(function_metadata, sizeof(Func_Meta), num_funcs, meta_fp);
-	if (nread != num_funcs){
-		fprintf(stderr, "Error: could not read correct amount of functions from func metadata. Expected: %lu, Read: %lu...\n", num_funcs, nread);
-		return -1;
-	}
-
-	fclose(meta_fp);
-
-
-	// 7.) Init op table
+	dataflow_handle -> num_native_function_libs = 0;
+	
+	// 6.) Init op table
 
 	Hash_Func hash_func = &cuda_op_table_hash_func;
 	uint64_t key_size_bytes = OP_IDENTIFIER_FINGERPRINT_NUM_BYTES;
 	uint64_t value_size_bytes = sizeof(Cuda_Function);
 
-	uint64_t min_table_size = 4 * num_funcs;
-	uint64_t max_table_size = 4 * num_funcs;
+	uint64_t min_table_size = OP_TABLE_MIN_SIZE;
+	uint64_t max_table_size = OP_TABLE_MAX_SIZE;
 
 	float load_factor = 1.0f;
 	float shrink_factor = 1.0f;
@@ -729,173 +878,38 @@ int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType com
 	if (ret){
 		fprintf(stderr, "Error: failed to init op table...\n");
 		return -1;
-	}
-
-
-	// Handle all of the native functions here...
-	
-	// Iterate over all of the function metadata, set function attributes, set launch function pointer, and insert into op table...
-	
-	Cuda_Function cur_cuda_function;
-	CUmodule module = *((CUmodule *) dataflow_handle -> function_lib);
-
-	char * native_func_lib_name;
-	void * external_lib_handle;
-	External_Lib_Func_Init external_lib_func_init_ref;
-	External_Lib_Func external_lib_func_ref;
-
-	for (int i = 0; i < num_funcs; i++){
-
-		// copy over the op skeleton
-		memcpy(&(cur_cuda_function.op_skeleton), &(function_metadata[i].op_skeleton), sizeof(Op_Skeleton));
-
-		native_func_lib_name = function_metadata[i].native_func_lib_name;
-
-		if (native_func_lib_name[0] != '\0'){
-
-			cur_cuda_function.is_native = true;
-
-			ret = cu_module_get_function(&(cur_cuda_function.function_handle), module, function_metadata[i].native_func_lib_name);
-			if (ret){
-				fprintf(stderr, "Error: failed to load function #%d with name %s from function lib...\n", i, function_metadata[i].native_func_lib_name);
-				return -1;
-			}
-
-			// call the set attribute function from shared library with symbol specified by func_config_lib_set_attribute_symbol_name
-			if (function_metadata[i].native_func_config_lib_set_attribute_symbol_name[0] != '\0'){
-				Cuda_Set_Func_Attribute set_func_attribute = dlsym(config_lib_handle, function_metadata[i].native_func_config_lib_set_attribute_symbol_name);
-				if (!set_func_attribute){
-					fprintf(stderr, "Error: failed to load symbol to initialize function #%d with name %s and attribute setting function as %s...\n", i, function_metadata[i].native_func_lib_name, function_metadata[i].native_func_config_lib_set_attribute_symbol_name);
-					return -1;
-				}
-
-				// now call set func attribute
-				ret = set_func_attribute(dataflow_handle, &(cur_cuda_function));
-				if (ret){
-					fprintf(stderr, "Error: failed to set function attributes for function #%d with name %s and attribute setting function as %s\n", i, function_metadata[i].native_func_lib_name, function_metadata[i].native_func_config_lib_set_attribute_symbol_name);
-					return -1;
-				}
-			}
-
-
-			ret = cu_func_load(cur_cuda_function.function_handle);
-			if (ret){
-				fprintf(stderr, "Error: could not load cuda function with name %s from function lib...\n", function_metadata[i].native_func_lib_name);
-				return -1;
-			}
-
-
-			// now set the pointer for launch config as part of 
-			cur_cuda_function.set_launch_config = dlsym(config_lib_handle, function_metadata[i].native_func_config_lib_set_launch_symbol_name);
-			if (!cur_cuda_function.set_launch_config){
-				fprintf(stderr, "Error: failed to get function pointer to launch config for for function #%d with name %s and set_launch_config function name as %s\n", i, function_metadata[i].native_func_lib_name, function_metadata[i].native_func_config_lib_set_launch_symbol_name);
-				return -1;
-			}
-
-
-			cur_cuda_function.cuda_external_func = NULL;
-			cur_cuda_function.op_extra = NULL;
-		
-			// now insert the cuda function into the table...
-
-			// the table copies the value
-			ret = insert_table(&(dataflow_handle -> op_table), &(cur_cuda_function.op_skeleton.identifier.fingerprint), &cur_cuda_function);
-			if (ret){
-				fprintf(stderr, "Error: failed to insert op for function #%d with name %s to op table...\n", i, function_metadata[i].native_func_lib_name);
-				return -1;
-			}
-
-		}
-		else{
-
-			if (function_metadata[i].external_lib_func_symbol[0] == '\0'){
-				fprintf(stderr, "Error: no function symbol is defined either native or external...\n");
-				continue;
-			}
-
-			memset(&cur_cuda_function.function_config, 0, sizeof(Cuda_Function_Config));
-			cur_cuda_function.is_native = false;
-			memset(&cur_cuda_function.function_handle, 0, sizeof(CUfunction));
-			cur_cuda_function.set_launch_config = NULL;
-
-			if (function_metadata[i].external_lib_path[0] == '\0'){
-				fprintf(stderr, "Error: trying to initialize external function %s, without an extra library...\n", function_metadata[i].external_lib_func_symbol);
-				return -1;
-			}
-
-			external_lib_handle = dlopen(function_metadata[i].external_lib_path, RTLD_LAZY);
-			if (!external_lib_handle){
-				fprintf(stderr, "Error: could not open external library with path: %s for function: %s\n", function_metadata[i].external_lib_path, function_metadata[i].external_lib_func_symbol);
-				return -1;
-			}
-
-
-			// Obtain the actual function
-			external_lib_func_ref = dlsym(external_lib_handle, function_metadata[i].external_lib_func_symbol);
-			if (!external_lib_func_ref){
-				fprintf(stderr, "Error: could not obtain function symbol %s from external lib %s...\n", function_metadata[i].external_lib_func_symbol, function_metadata[i].external_lib_path);
-				return -1;
-			}
-
-			// set the external function
-			cur_cuda_function.cuda_external_func = external_lib_func_ref;
-
-			// If function has an init coupled
-			if (function_metadata[i].external_lib_func_init_symbol[0] != '\0'){
-				external_lib_func_init_ref = dlsym(external_lib_handle, function_metadata[i].external_lib_func_init_symbol);
-				if (!external_lib_func_init_ref){
-					fprintf(stderr, "Error: could not get ref to initialization function %s, for external function %s\n", function_metadata[i].external_lib_func_init_symbol, function_metadata[i].external_lib_func_symbol);
-					return -1;
-				}
-
-				// call the initialization function
-				ret = (*external_lib_func_init_ref)(dataflow_handle, (void *) &cur_cuda_function);
-				if (ret){
-					fprintf(stderr, "Error: initialization function %s, for external function %s returned an error...\n", function_metadata[i].external_lib_func_init_symbol, function_metadata[i].external_lib_func_symbol);
-					return -1;
-				}
-			}
-
-
-			// now insert the cuda function into the table...
-
-			// the table copies the value
-			ret = insert_table(&(dataflow_handle -> op_table), &(cur_cuda_function.op_skeleton.identifier.fingerprint), &cur_cuda_function);
-			if (ret){
-				fprintf(stderr, "Error: failed to insert op for function #%d with name %s to op table...\n", i, function_metadata[i].external_lib_func_symbol);
-				return -1;
-			}
-		}		
-	}
-
-	free(function_metadata);
+	}	
 
 	// SET FUNCTION POINTERS SO COMPUTE HANDLE CAN BE USEFUL...!
 
+	// Ops Functionality
+	dataflow_handle -> register_native_code = cuda_register_native_code;
+	dataflow_handle -> register_external_code = cuda_register_external_code;
+
 	// Compute Functionality
-	dataflow_handle -> submit_op = &cuda_submit_op;
-	dataflow_handle -> submit_host_op = &cuda_submit_host_op;
+	dataflow_handle -> submit_op = cuda_submit_op;
+	dataflow_handle -> submit_host_op = cuda_submit_host_op;
 
 	// Dependency Functionality
-	dataflow_handle -> get_stream_state = &cuda_get_stream_state;
-	dataflow_handle -> submit_dependency = &cuda_submit_dependency;
+	dataflow_handle -> get_stream_state = cuda_get_stream_state;
+	dataflow_handle -> submit_dependency = cuda_submit_dependency;
 	//dataflow_handle -> submit_stream_post_sem_callback = &cuda_submit_stream_post_sem_callback;
-	dataflow_handle -> sync_stream = &cuda_sync_stream;
-	dataflow_handle -> sync_handle = &cuda_sync_handle;
+	dataflow_handle -> sync_stream = cuda_sync_stream;
+	dataflow_handle -> sync_handle = cuda_sync_handle;
 
 	// Memory Functionality
-	dataflow_handle -> alloc_mem = &cuda_alloc_mem;
-	dataflow_handle -> free_mem = &cuda_free_mem;
-	dataflow_handle -> set_mem = &cuda_set_mem;
-	dataflow_handle -> enable_access_to_host_mem = &cuda_enable_access_to_host_mem;
-	dataflow_handle -> disable_access_to_host_mem = &cuda_disable_access_to_host_mem;
-	dataflow_handle -> enable_access_to_peer_mem = &cuda_enable_access_to_peer_mem;
-	dataflow_handle -> disable_access_to_peer_mem = &cuda_disable_access_to_peer_mem;
+	dataflow_handle -> alloc_mem = cuda_alloc_mem;
+	dataflow_handle -> free_mem = cuda_free_mem;
+	dataflow_handle -> set_mem = cuda_set_mem;
+	dataflow_handle -> enable_access_to_host_mem = cuda_enable_access_to_host_mem;
+	dataflow_handle -> disable_access_to_host_mem = cuda_disable_access_to_host_mem;
+	dataflow_handle -> enable_access_to_peer_mem = cuda_enable_access_to_peer_mem;
+	dataflow_handle -> disable_access_to_peer_mem = cuda_disable_access_to_peer_mem;
 
 	// Transfer Functionality
-	dataflow_handle -> submit_inbound_transfer = &cuda_submit_inbound_transfer;
-	dataflow_handle -> submit_outbound_transfer = &cuda_submit_outbound_transfer;
-	dataflow_handle -> submit_peer_transfer = &cuda_submit_outbound_transfer;
+	dataflow_handle -> submit_inbound_transfer = cuda_submit_inbound_transfer;
+	dataflow_handle -> submit_outbound_transfer = cuda_submit_outbound_transfer;
+	dataflow_handle -> submit_peer_transfer = cuda_submit_outbound_transfer;
 	
 	
 

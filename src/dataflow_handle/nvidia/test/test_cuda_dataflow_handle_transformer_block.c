@@ -1,6 +1,11 @@
+#define __GNU_SOURCE
+#include <stdio.h>
+
 #include "cuda_dataflow_handle.h"
 #include "create_host_matrix.h"
 #include "dataflow_ops.h"
+
+#include "string.h"
 
 int main(int argc, char * argv[]){
 
@@ -33,20 +38,71 @@ int main(int argc, char * argv[]){
 	int outbound_stream_id_b = 6;
 	int peer_stream_id_b = 7;
 	
-	char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
-	char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
-	char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+	// char * all_function_meta_filename = "../../../ops/nvidia/lib/cuda_all_functions_meta.dat";
+	// char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
+	// char * native_function_lib_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+
+	// ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
+	// 		ctx_id, ctx_flags, 
+	// 		num_streams, opt_stream_prios, opt_stream_names, 
+	// 		all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
 
 	ret = init_cuda_dataflow_handle(&cuda_dataflow_handle, compute_type, device_id, 
 			ctx_id, ctx_flags, 
-			num_streams, opt_stream_prios, opt_stream_names, 
-			all_function_meta_filename, native_function_config_filename, native_function_lib_filename); 
+			num_streams, opt_stream_prios, opt_stream_names); 
 	
 	if (ret){
 		fprintf(stderr, "Error: failed to init cuda dataflow handle...\n");
 		return -1;
 	}
 
+	// Register matmul op
+
+	int added_funcs;
+
+	Op_Skeleton matmul_skeletons[1];
+	set_external_matmul_skeleton(&matmul_skeletons[0]);
+
+
+	char * matmul_lib = "../../../ops/nvidia/external/matmul_helper/lib/libmatmulwrapper.so";
+	
+	char * matmul_symbols[1] = {"cublas_matmul"};
+
+	char * matmul_init_symbols[1] = {"cublas_matmul_init"};
+
+	added_funcs = cuda_dataflow_handle.register_external_code(&cuda_dataflow_handle, matmul_lib, 1, matmul_skeletons, matmul_symbols, matmul_init_symbols);
+	if (added_funcs != 1){
+		fprintf(stderr, "Error: failed to register matmul op, expected 1 functions, got %d...\n", added_funcs);
+		return -1;
+	}
+
+	// Register flash attention op
+
+	Op_Skeleton flash_attention_skeletons[2];
+	set_external_flash3_attention_fwd_skeleton(&flash_attention_skeletons[0]);
+	set_external_flash3_attention_bwd_skeleton(&flash_attention_skeletons[1]);
+
+	char * flash_attention_lib = "../../../ops/nvidia/external/attention_helper/lib/libattentionwrapper.so";
+	
+	char * flash_attention_symbols[2] = {"flash3_attention_fwd", "flash3_attention_bwd"};
+
+	char * flash_attention_init_symbols[2] = {NULL, NULL};
+
+	added_funcs = cuda_dataflow_handle.register_external_code(&cuda_dataflow_handle, flash_attention_lib, 2, flash_attention_skeletons, flash_attention_symbols, flash_attention_init_symbols);
+	if (added_funcs != 2){
+		fprintf(stderr, "Error: failed to register flash attention op, expected 2 functions, got %d...\n", added_funcs);
+		return -1;
+	}
+
+	// Register native ops
+
+	char * native_function_code_filename = "../../../ops/nvidia/lib/cuda_kernels.cubin";
+	char * native_function_config_filename = "../../../ops/nvidia/lib/cuda_kernels_config.so";
+
+	// call helper function within set_ops.c...
+	added_funcs = register_native_ops(&cuda_dataflow_handle, native_function_code_filename, native_function_config_filename);
+	printf("Registered %d native functions...\n", added_funcs);
+	
 	int alignment = 4096;
 
 	void * host_mem;
@@ -610,7 +666,7 @@ int main(int argc, char * argv[]){
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_trans_a, to_trans_b,
-					model_dim, kv_dim, total_q,
+					kv_dim, model_dim, total_q,
 					1.0, 0.0,
 					d_wk, d_attn_norm_out, NULL, d_wk_out,
 					workspaceBytes, d_matmul_workspace);
@@ -624,7 +680,7 @@ int main(int argc, char * argv[]){
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_trans_a, to_trans_b,
-					model_dim, kv_dim, total_q,
+					kv_dim, model_dim, total_q,
 					1.0, 0.0,
 					d_wv, d_attn_norm_out, NULL, d_wv_out,
 					workspaceBytes, d_matmul_workspace);
@@ -707,7 +763,7 @@ int main(int argc, char * argv[]){
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_trans_a, to_trans_b,
-					model_dim, (int) ffn_dim, total_q, 
+					(int) ffn_dim, model_dim, total_q, 
 					1.0, 0.0,
 					d_w1, d_ffn_norm_out, NULL, d_w1_out,
 					workspaceBytes, d_matmul_workspace);
@@ -721,7 +777,7 @@ int main(int argc, char * argv[]){
 					fwd_dt, fwd_dt, DATAFLOW_NONE, fwd_dt,
 					compute_dt,
 					to_trans_a, to_trans_b,
-					model_dim, (int) ffn_dim, total_q, 
+					(int) ffn_dim, model_dim, total_q, 
 					1.0, 0.0,
 					d_w3, d_ffn_norm_out, NULL, d_w3_out,
 					workspaceBytes, d_matmul_workspace);
@@ -752,7 +808,7 @@ int main(int argc, char * argv[]){
 					fwd_dt, fwd_dt, fwd_dt, fwd_dt,
 					compute_dt,
 					to_trans_a, to_trans_b,
-					(int) ffn_dim, model_dim, total_q, 
+					model_dim, (int) ffn_dim, total_q, 
 					1.0, 1.0,
 					d_w2, d_swiglu_out, d_wo_out, d_w2_out,
 					workspaceBytes, d_matmul_workspace);

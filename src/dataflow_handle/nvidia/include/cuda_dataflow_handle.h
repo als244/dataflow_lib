@@ -64,7 +64,6 @@ typedef int (*Cuda_Set_Func_Attribute)(Dataflow_Handle * dataflow_handle, Cuda_F
 
 int init_cuda_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType compute_type, int device_id, 
 								int ctx_id, unsigned int ctx_flags, 
-								int num_streams, int * opt_stream_prios, char ** opt_stream_names,
-								char * all_function_meta_filename, char * native_function_config_lib_filename, char * native_function_lib_filename);
+								int num_streams, int * opt_stream_prios, char ** opt_stream_names);
 
 #endif

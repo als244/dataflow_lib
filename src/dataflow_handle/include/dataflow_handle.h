@@ -5,11 +5,14 @@
 #include "table.h"
 #include "ops.h"
 
-#define MAX_OPS 65536
+#define OP_TABLE_MIN_SIZE 1UL << 10
+#define OP_TABLE_MAX_SIZE 1UL << 20
+
+#define MAX_NATIVE_FUNCTION_LIBS 1024
 
 #define MAX_STREAMS 256
 
-#define FUNC_NAME_MAX_LEN 1024
+#define FUNC_SYMBOL_MAX_LEN 512
 
 typedef enum compute_type {
 	COMPUTE_NONE,
@@ -18,20 +21,6 @@ typedef enum compute_type {
 	COMPUTE_HSA,
 	COMPUTE_LEVEL_ZERO
 } ComputeType;
-
-
-typedef struct func_meta {
-	// symbol to reference for setting the launch configuration
-	char native_func_lib_name[FUNC_NAME_MAX_LEN];
-	char native_func_config_lib_set_attribute_symbol_name[FUNC_NAME_MAX_LEN];
-	char native_func_config_lib_set_launch_symbol_name[FUNC_NAME_MAX_LEN];
-	// If not native then external should be set
-	char external_lib_path[PATH_MAX];
-	char external_lib_func_init_symbol[FUNC_NAME_MAX_LEN];
-	char external_lib_func_symbol[FUNC_NAME_MAX_LEN];
-	// the function arguments of external lib should match
-	Op_Skeleton op_skeleton;
-} Func_Meta;
 
 
 typedef struct dataflow_handle Dataflow_Handle;
@@ -64,15 +53,26 @@ struct dataflow_handle {
 	void * stream_states;
 
 	// space to actually load native module and functions
-	void * function_lib;
+	int num_native_function_libs;
+	void * native_function_libs[MAX_NATIVE_FUNCTION_LIBS];
 
 	// Table containing mapping of op_skeleton.fingerprint => backend specific function info/launch func pointers
 	// initially populated using combination of native function lib (pre-compiled into native assembly)
 	// and external function pointers from other shared libs
+	int num_ops;
 	Table op_table;
 	
 
 	// Backend Required Functions...
+
+	// 0.) OPS Functionality
+
+	// returns number of functions added to op table
+	// or -1 if error loading native/external code filename, or for native code, if error loading native code config lib
+	int (*register_native_code)(Dataflow_Handle * dataflow_handle, char * native_code_filename, char * native_code_config_lib_filename, 
+								int num_funcs, Op_Skeleton * func_op_skeletons, char ** func_symbols, char ** func_set_launch_symbols, char ** func_init_symbols);
+	int (*register_external_code)(Dataflow_Handle * dataflow_handle, char * external_code_filename, int num_funcs, 
+								Op_Skeleton * func_op_skeletons, char ** func_symbols, char ** func_init_symbols);
 
 	
 	// 1.) COMPUTE Functionality
@@ -136,8 +136,7 @@ typedef int (*External_Lib_Func_Init)(Dataflow_Handle * dataflow_handle, void * 
 typedef int (*External_Lib_Func)(Dataflow_Handle * dataflow_handle, int stream_id, Op * op, void * op_extra);
 
 
-int init_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType compute_type, int device_id, int ctx_id, unsigned int ctx_flags, int num_streams, int * opt_stream_prios, char ** opt_stream_names, 
-							char * all_function_meta_filename, char * native_function_config_lib_filename, char * native_function_lib_filename);
+int init_dataflow_handle(Dataflow_Handle * dataflow_handle, ComputeType compute_type, int device_id, int ctx_id, unsigned int ctx_flags, int num_streams, int * opt_stream_prios, char ** opt_stream_names);
 
 
 
