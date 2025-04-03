@@ -400,7 +400,7 @@ static int set_cublas_matmul_params(Cublas_Matmul_Params * matmul_params, Op * o
 		transa = CUBLAS_OP_T;
 	}
 
-	if (to_trans_a){
+	if (to_trans_b){
 		transb = CUBLAS_OP_T;
 	}
 
